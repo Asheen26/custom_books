@@ -4,6 +4,7 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/banking/controllers/bank_account_form_controller.dart';
 import 'package:custom_books/features/banking/widgets/bank_account_form_widgets.dart';
 import 'package:custom_books/features/banking/widgets/currency_bottom_sheet.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,8 @@ class AddBankAccountPage extends StatefulWidget {
 
 class _AddBankAccountPageState extends State<AddBankAccountPage>
     with UnsavedChangesMixin {
+  final BankAccountFormController _formController = BankAccountFormController();
+
   String _selectedAccountType = 'Bank';
   bool _makePrimary = false;
   String _selectedCurrency = 'INR- Indian Rupee';
@@ -29,24 +32,11 @@ class _AddBankAccountPageState extends State<AddBankAccountPage>
   final _ifscCodeController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  final List<String> _currencies = [
-    'INR- Indian Rupee',
-    'AUD- Australian Dollar',
-    'BND- Brunei Dollar',
-    'CAD- Canadian Dollar',
-    'CNY- Yuan Renminbi',
-    'EUR- Euro',
-    'GBP- Pound Sterling',
-    'JPY- Japanese Yen',
-    'SAR- Saudi Riyal',
-    'USD- United States Dollar',
-    'ZAR- South African Rand',
-  ];
-
   @override
   void initState() {
     super.initState();
     _load();
+    _formController.addListener(_onFormChanged);
     _accountNameController.addListener(markDirty);
     _accountCodeController.addListener(markDirty);
     _accountNumberController.addListener(markDirty);
@@ -55,8 +45,13 @@ class _AddBankAccountPageState extends State<AddBankAccountPage>
     _descriptionController.addListener(markDirty);
   }
 
+  void _onFormChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _formController.removeListener(_onFormChanged);
     _accountNameController.removeListener(markDirty);
     _accountCodeController.removeListener(markDirty);
     _accountNumberController.removeListener(markDirty);
@@ -69,7 +64,61 @@ class _AddBankAccountPageState extends State<AddBankAccountPage>
     _bankNameController.dispose();
     _ifscCodeController.dispose();
     _descriptionController.dispose();
+    _formController.dispose();
     super.dispose();
+  }
+
+  /// Extracts the currency code (e.g. "INR") from a label like
+  /// "INR- Indian Rupee".
+  String _currencyCode(String label) {
+    final dashIndex = label.indexOf('-');
+    final code = dashIndex > 0 ? label.substring(0, dashIndex) : label;
+    return code.trim();
+  }
+
+  Future<void> _save() async {
+    // Validate required fields
+    if (_accountNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter account name'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final body = <String, dynamic>{
+      'account_type': _selectedAccountType == 'Credit Card'
+          ? 'credit_card'
+          : 'bank',
+      'name': _accountNameController.text.trim(),
+      'account_code': _accountCodeController.text.trim(),
+      'currency': _currencyCode(_selectedCurrency),
+      'account_number': _accountNumberController.text.trim(),
+      'bank_name': _bankNameController.text.trim(),
+      'ifsc_code': _ifscCodeController.text.trim(),
+      'description': _descriptionController.text.trim(),
+      'is_primary': _makePrimary,
+    };
+
+    final ok = await _formController.create(body);
+    if (!mounted) return;
+
+    if (ok) {
+      markClean();
+      ToastificationHelper.showSuccess(
+        context,
+        '${_accountNameController.text.trim()} saved successfully.',
+      );
+      Navigator.pop(context, true);
+    } else {
+      ToastificationHelper.showError(
+        context,
+        _formController.errorMessage ??
+            'Could not save the account. Please try again.',
+      );
+    }
   }
 
   /// Simulates preparing the form so the shimmer skeleton is shown briefly.
@@ -102,26 +151,10 @@ class _AddBankAccountPageState extends State<AddBankAccountPage>
                           onPopInvokedWithResult(false, null),
                       actions: [
                         AppBarElevatedButton(
-                          label: 'SAVE',
-                          onPressed: () {
-                            // Validate required fields
-                            if (_accountNameController.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Please enter account name'),
-                                  backgroundColor: AppColors.error,
-                                ),
-                              );
-                              return;
-                            }
-
-                            ToastificationHelper.showSuccess(
-                              context,
-                              '${_accountNameController.text.trim()} saved successfully.',
-                            );
-                            markClean();
-                            Navigator.pop(context);
-                          },
+                          label: _formController.isSaving
+                              ? 'SAVING...'
+                              : 'SAVE',
+                          onPressed: _formController.isSaving ? null : _save,
                         ),
                         SizedBox(width: Dimensions.width20),
                       ],
@@ -244,7 +277,6 @@ class _AddBankAccountPageState extends State<AddBankAccountPage>
                                       CurrencyBottomSheet.show(
                                         context,
                                         selectedCurrency: _selectedCurrency,
-                                        currencies: _currencies,
                                         onCurrencySelected: (currency) {
                                           setState(() {
                                             _selectedCurrency = currency;

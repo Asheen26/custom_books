@@ -1,23 +1,24 @@
+import 'dart:async';
+
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
+import 'package:custom_books/features/banking/controllers/banking_options_controller.dart';
+import 'package:custom_books/features/banking/models/currency_option.dart';
 import 'package:flutter/material.dart';
 
 class CurrencyBottomSheet extends StatefulWidget {
   final String selectedCurrency;
-  final List<String> currencies;
   final ValueChanged<String> onCurrencySelected;
 
   const CurrencyBottomSheet({
     super.key,
     required this.selectedCurrency,
-    required this.currencies,
     required this.onCurrencySelected,
   });
 
   static void show(
     BuildContext context, {
     required String selectedCurrency,
-    required List<String> currencies,
     required ValueChanged<String> onCurrencySelected,
   }) {
     showModalBottomSheet(
@@ -27,7 +28,6 @@ class CurrencyBottomSheet extends StatefulWidget {
       builder: (context) {
         return CurrencyBottomSheet(
           selectedCurrency: selectedCurrency,
-          currencies: currencies,
           onCurrencySelected: onCurrencySelected,
         );
       },
@@ -40,21 +40,40 @@ class CurrencyBottomSheet extends StatefulWidget {
 
 class _CurrencyBottomSheetState extends State<CurrencyBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
+  final BankingOptionsController _controller = BankingOptionsController();
 
-  List<String> get _filteredCurrencies {
-    final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) {
-      return widget.currencies;
-    }
-    return widget.currencies
-        .where((currency) => currency.toLowerCase().contains(query))
-        .toList();
+  Timer? _debounce;
+  bool _isLoading = false;
+  List<CurrencyOption> _currencies = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), _fetch);
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _isLoading = true);
+    final results = await _controller.searchCurrencies(
+      search: _searchController.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _currencies = results;
+      _isLoading = false;
+    });
   }
 
   @override
@@ -101,9 +120,7 @@ class _CurrencyBottomSheetState extends State<CurrencyBottomSheet> {
             padding: EdgeInsets.all(Dimensions.width20),
             child: TextField(
               controller: _searchController,
-              onChanged: (value) {
-                setState(() {});
-              },
+              onChanged: _onSearchChanged,
               style: TextStyle(
                 fontSize: Dimensions.font16 * 0.85,
                 color: context.colors.textPrimary,
@@ -140,68 +157,96 @@ class _CurrencyBottomSheetState extends State<CurrencyBottomSheet> {
             ),
           ),
 
-          // Currency List
-          Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
-              itemCount: _filteredCurrencies.length,
-              itemBuilder: (context, index) {
-                final currency = _filteredCurrencies[index];
-                final isSelected = currency == widget.selectedCurrency;
-
-                return GestureDetector(
-                  onTap: () {
-                    widget.onCurrencySelected(currency);
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    margin: EdgeInsets.only(bottom: Dimensions.height10),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Dimensions.width15,
-                      vertical: Dimensions.height15,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary.withValues(alpha: 0.05)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(Dimensions.radius15),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : context.colors.border,
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          currency,
-                          style: TextStyle(
-                            fontSize: Dimensions.font16,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: isSelected
-                                ? AppColors.primary
-                                : context.colors.textPrimary,
-                          ),
-                        ),
-                        if (isSelected)
-                          Icon(
-                            Icons.check_circle,
-                            color: AppColors.primary,
-                            size: Dimensions.iconSize24,
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          // Currency List / states
+          Expanded(child: _buildBody(context)),
         ],
       ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    if (_currencies.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: Dimensions.iconSize24 * 1.6,
+              color: context.colors.textTertiary,
+            ),
+            SizedBox(height: Dimensions.height10),
+            Text(
+              'No currencies found',
+              style: TextStyle(
+                fontSize: Dimensions.font16 * 0.9,
+                color: context.colors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
+      itemCount: _currencies.length,
+      itemBuilder: (context, index) {
+        final currency = _currencies[index];
+        final isSelected = currency.label == widget.selectedCurrency;
+
+        return GestureDetector(
+          onTap: () {
+            widget.onCurrencySelected(currency.label);
+            Navigator.pop(context);
+          },
+          child: Container(
+            margin: EdgeInsets.only(bottom: Dimensions.height10),
+            padding: EdgeInsets.symmetric(
+              horizontal: Dimensions.width15,
+              vertical: Dimensions.height15,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary.withValues(alpha: 0.05)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              border: Border.all(
+                color: isSelected ? AppColors.primary : context.colors.border,
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  currency.label,
+                  style: TextStyle(
+                    fontSize: Dimensions.font16,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected
+                        ? AppColors.primary
+                        : context.colors.textPrimary,
+                  ),
+                ),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle,
+                    color: AppColors.primary,
+                    size: Dimensions.iconSize24,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -11,11 +11,16 @@ class ActiveAccountItem extends StatelessWidget {
   IconData _getIconData(String iconName) {
     switch (iconName) {
       case 'bank':
+      case 'account_balance':
         return Icons.account_balance_rounded;
       case 'cash':
         return Icons.money_rounded;
       case 'undeposited':
+      case 'undeposited_funds':
+      case 'dollar':
         return Icons.attach_money_rounded;
+      case 'credit_card':
+        return Icons.credit_card_rounded;
       default:
         return Icons.account_balance_wallet_rounded;
     }
