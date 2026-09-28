@@ -6,6 +6,7 @@ import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/banking/controllers/banking_overview_controller.dart';
 import 'package:custom_books/features/banking/models/bank_account.dart';
 import 'package:custom_books/features/banking/models/banking_overview.dart';
+import 'package:custom_books/features/banking/views/account_transactions_page.dart';
 import 'package:custom_books/features/banking/views/add_bank_account_page.dart';
 import 'package:custom_books/features/banking/widgets/bank_account_card.dart';
 import 'package:custom_books/core/widgets/more_options_sheet.dart';
@@ -317,8 +318,17 @@ class _BankingPageState extends State<BankingPage> {
                   padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) =>
-                          ActiveAccountItem(account: _accounts[index]),
+                      (context, index) => ActiveAccountItem(
+                        account: _accounts[index],
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AccountTransactionsPage(
+                              account: _accounts[index],
+                            ),
+                          ),
+                        ),
+                      ),
                       childCount: _accounts.length,
                     ),
                   ),
