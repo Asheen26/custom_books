@@ -30,6 +30,7 @@ class _CustomersPageState extends State<CustomersPage> {
   final ScrollController _scrollController = ScrollController();
   final _searchController = TextEditingController();
   Timer? _searchDebounce;
+  final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
 
   String _selectedFilter = 'All Customers';
   bool _searchOpen = false;
@@ -89,6 +90,20 @@ class _CustomersPageState extends State<CustomersPage> {
     });
   }
 
+  Future<void> _exportCustomers() async {
+    ToastificationHelper.showInfo(context, 'Exporting customers…');
+    final error = await _controller.exportCustomers();
+    if (!mounted) return;
+    if (error == null) {
+      ToastificationHelper.showSuccess(
+        context,
+        'Customers exported successfully.',
+      );
+    } else {
+      ToastificationHelper.showError(context, error);
+    }
+  }
+
   bool get _isLoading => _controller.isLoading;
 
   List<CustomerModel> get _customers => _controller.customers;
@@ -111,20 +126,14 @@ class _CustomersPageState extends State<CustomersPage> {
         MoreOptionsItem(
           icon: Icons.file_download_outlined,
           title: 'Export Customers',
-          subtitle: 'Export the current customer list',
-          onTap: () => ToastificationHelper.showInfo(
-            context,
-            'Exporting customers is coming soon.',
-          ),
+          subtitle: 'Export the current customer list as CSV',
+          onTap: () => _exportCustomers(),
         ),
         MoreOptionsItem(
           icon: Icons.refresh_rounded,
           title: 'Refresh',
           subtitle: 'Reload the latest customers',
-          onTap: () {
-            _loadCustomers();
-            ToastificationHelper.showSuccess(context, 'Customers refreshed.');
-          },
+          onTap: () => _refreshIndicatorKey.currentState?.show(),
         ),
       ],
     );
@@ -179,6 +188,7 @@ class _CustomersPageState extends State<CustomersPage> {
       drawer: const DrawerView(currentRoute: 'customers'),
       body: SafeArea(
         child: RefreshIndicator(
+          key: _refreshIndicatorKey,
           color: AppColors.primary,
           backgroundColor: context.colors.card,
           strokeWidth: 2.5,

@@ -460,13 +460,20 @@ class _AddCustomerPageState extends State<AddCustomerPage>
       lastName: lastName,
     );
 
-    final success = await _formController.createCustomer(body);
+    final isEdit = widget.customer != null;
+    final bool success;
+    if (isEdit) {
+      success = await _formController.update(widget.customer!.id, body);
+    } else {
+      success = await _formController.create(body);
+    }
     if (!mounted) return;
 
     if (success) {
       markClean();
-      final name = _formController.createdCustomer?.name ?? resolvedDisplayName;
-      ToastificationHelper.showSuccess(context, '$name saved successfully.');
+      final name = _formController.savedCustomer?.name ?? resolvedDisplayName;
+      final verb = isEdit ? 'updated' : 'saved';
+      ToastificationHelper.showSuccess(context, '$name $verb successfully.');
       Navigator.pop(context, true);
     } else {
       setState(() {});

@@ -98,4 +98,39 @@ class CustomersListViewModel {
       return null;
     }
   }
+
+  Future<http.Response?> exportCustomers({String format = 'csv'}) async {
+    final url = Uri.parse(
+      '$baseUrl/api/customers/export/',
+    ).replace(queryParameters: {'format': format});
+
+    try {
+      final token = await AuthService.instance.getValidAccessToken();
+      appLog(
+        '➡️ Export customers request: $url',
+        name: 'CustomersListViewModel',
+      );
+
+      final response = await http.get(
+        url,
+        headers: {if (token != null) 'Authorization': 'Bearer $token'},
+      );
+
+      appLog(
+        '📦 Export customers response (${response.statusCode}), '
+        'bytes: ${response.bodyBytes.length}',
+        name: 'CustomersListViewModel',
+      );
+
+      return response;
+    } catch (e, st) {
+      appLog(
+        '❌ Export customers request error: $e',
+        name: 'CustomersListViewModel',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
 }

@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/models/customer_options_model.dart';
 import 'package:custom_books/features/customers/viewmodels/customers_list_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CustomersListController extends ChangeNotifier {
   final _vm = CustomersListViewModel();
@@ -187,6 +190,56 @@ class CustomersListController extends ChangeNotifier {
         name: 'CustomersListController',
       );
       return null;
+    }
+  }
+
+  bool _isExporting = false;
+  bool get isExporting => _isExporting;
+
+  Future<String?> exportCustomers() async {
+    _isExporting = true;
+    notifyListeners();
+
+    try {
+      final response = await _vm.exportCustomers();
+      if (response == null ||
+          response.statusCode < 200 ||
+          response.statusCode >= 300) {
+        appLog(
+          '⚠️ Export failed (status: ${response?.statusCode})',
+          name: 'CustomersListController',
+        );
+        return 'Export failed. Please try again.';
+      }
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'customers_$timestamp.csv';
+      final tempDir = Directory.systemTemp;
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      final uri = Uri.file(file.path);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        return null;
+      } else {
+        appLog(
+          '⚠️ Could not open exported file: ${file.path}',
+          name: 'CustomersListController',
+        );
+        return 'File saved to ${file.path} but could not be opened automatically.';
+      }
+    } catch (e, st) {
+      appLog(
+        '❌ Export error: $e',
+        name: 'CustomersListController',
+        error: e,
+        stackTrace: st,
+      );
+      return 'Export failed: $e';
+    } finally {
+      _isExporting = false;
+      notifyListeners();
     }
   }
 }

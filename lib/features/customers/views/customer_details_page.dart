@@ -5,6 +5,7 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/bottom_sheet_drag_handle.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/features/customers/controllers/customer_detail_controller.dart';
+import 'package:custom_books/features/customers/controllers/customer_form_controller.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/views/add_customer_page.dart';
 import 'package:custom_books/features/customers/widgets/customer_details_page_widgets/comments_tab.dart';
@@ -32,6 +33,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
   late TabController _tabController;
   final TextEditingController _commentController = TextEditingController();
   final CustomerDetailController _controller = CustomerDetailController();
+  final CustomerFormController _formController = CustomerFormController();
 
   /// The customer currently displayed: the freshly fetched one when available,
   /// otherwise the (partial) customer passed in from the list.
@@ -55,6 +57,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
   void dispose() {
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
+    _formController.dispose();
     _tabController.dispose();
     _commentController.dispose();
     super.dispose();
@@ -62,6 +65,28 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
 
   void _onControllerChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleStatus() async {
+    final current = _customer;
+    final newStatus = current.isActive ? 'inactive' : 'active';
+    final label = current.isActive ? 'inactive' : 'active';
+
+    final ok = await _formController.patch(current.id, {'status': newStatus});
+    if (!mounted) return;
+
+    if (ok) {
+      ToastificationHelper.showSuccess(
+        context,
+        '${current.name} marked as $label.',
+      );
+      await _load();
+    } else {
+      ToastificationHelper.showError(
+        context,
+        _formController.errorMessage ?? 'Could not update status.',
+      );
+    }
   }
 
   Future<void> _load() async {
@@ -149,12 +174,14 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                 ),
               ),
               tile(
-                Icons.block_rounded,
-                'Mark as inactive',
-                () => ToastificationHelper.showInfo(
-                  context,
-                  'This customer has been marked inactive.',
-                ),
+                _customer.isActive
+                    ? Icons.block_rounded
+                    : Icons.check_circle_outline_rounded,
+                _customer.isActive ? 'Mark as inactive' : 'Mark as active',
+                () {
+                  Navigator.pop(ctx);
+                  _toggleStatus();
+                },
               ),
               SizedBox(height: Dimensions.height20),
             ],
