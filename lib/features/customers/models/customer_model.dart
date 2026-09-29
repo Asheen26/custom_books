@@ -1,3 +1,5 @@
+import 'package:custom_books/features/customers/models/customer_draft.dart';
+
 class CustomerModel {
   final String id;
   final String name;
@@ -30,6 +32,14 @@ class CustomerModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  final String? phoneCountryCode;
+  final String? mobileCountryCode;
+  final bool allowPortalAccess;
+  final String? portalLanguage;
+  final CustomerAddressDraft? billingAddress;
+  final CustomerAddressDraft? shippingAddress;
+  final List<CustomerContactPersonDraft> contactPersons;
+
   CustomerModel({
     required this.id,
     required this.name,
@@ -60,6 +70,13 @@ class CustomerModel {
     this.isOverdue = false,
     this.createdAt,
     this.updatedAt,
+    this.phoneCountryCode,
+    this.mobileCountryCode,
+    this.allowPortalAccess = false,
+    this.portalLanguage,
+    this.billingAddress,
+    this.shippingAddress,
+    this.contactPersons = const [],
   });
 
   String get initials {
@@ -81,6 +98,9 @@ class CustomerModel {
     final String? contactWorkPhone = primaryContact != null
         ? _nullIfBlank(primaryContact['work_phone'])
         : null;
+
+    final billing = json['billing_address'];
+    final shipping = json['shipping_address'];
 
     return CustomerModel(
       id: (json['customer_id'] ?? json['id'] ?? '').toString(),
@@ -113,6 +133,20 @@ class CustomerModel {
       isOverdue: json['is_overdue'] == true,
       createdAt: _toDate(json['created_at']),
       updatedAt: _toDate(json['updated_at']),
+      phoneCountryCode: _nullIfBlank(json['phone_country_code']),
+      mobileCountryCode: _nullIfBlank(json['mobile_country_code']),
+      allowPortalAccess: json['allow_portal_access'] == true,
+      portalLanguage: _nullIfBlank(json['portal_language']),
+      billingAddress: billing is Map<String, dynamic>
+          ? CustomerAddressDraft.fromJson(billing)
+          : null,
+      shippingAddress: shipping is Map<String, dynamic>
+          ? CustomerAddressDraft.fromJson(shipping)
+          : null,
+      contactPersons: contacts
+          .whereType<Map<String, dynamic>>()
+          .map(CustomerContactPersonDraft.fromJson)
+          .toList(),
     );
   }
 

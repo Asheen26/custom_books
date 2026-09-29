@@ -1,11 +1,15 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
+import 'package:custom_books/features/customers/models/customer_draft.dart';
+import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/views/add_contact_person_page.dart';
 import 'package:flutter/material.dart';
 
 class ContactPersonsSection extends StatefulWidget {
-  const ContactPersonsSection({super.key});
+  final CustomerModel customer;
+
+  const ContactPersonsSection({super.key, required this.customer});
 
   @override
   State<ContactPersonsSection> createState() => _ContactPersonsSectionState();
@@ -82,14 +86,19 @@ class _ContactPersonsSectionState extends State<ContactPersonsSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'You haven\'t added any contact persons for this contact yet.',
-                    style: TextStyle(
-                      fontSize: Dimensions.font16 * 0.85,
-                      color: context.colors.textTertiary,
-                      height: 1.5,
+                  if (widget.customer.contactPersons.isEmpty)
+                    Text(
+                      'You haven\'t added any contact persons for this contact yet.',
+                      style: TextStyle(
+                        fontSize: Dimensions.font16 * 0.85,
+                        color: context.colors.textTertiary,
+                        height: 1.5,
+                      ),
+                    )
+                  else
+                    ...widget.customer.contactPersons.map(
+                      (p) => _contactTile(context, p),
                     ),
-                  ),
                   SizedBox(height: Dimensions.height20),
                   GestureDetector(
                     onTap: () {
@@ -129,6 +138,94 @@ class _ContactPersonsSectionState extends State<ContactPersonsSection> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _contactTile(BuildContext context, CustomerContactPersonDraft person) {
+    final salutationLabel = CustomerFieldMaps.labelFor(
+      CustomerFieldMaps.salutation,
+      person.salutation,
+    );
+    final name = [
+      ?salutationLabel,
+      person.firstName.trim(),
+      person.lastName.trim(),
+    ].where((s) => s.isNotEmpty).join(' ');
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: Dimensions.height15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (name.isNotEmpty)
+            Text(
+              name,
+              style: TextStyle(
+                fontSize: Dimensions.font16 * 0.95,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textPrimary,
+              ),
+            ),
+          if (person.designation.trim().isNotEmpty ||
+              person.department.trim().isNotEmpty) ...[
+            SizedBox(height: Dimensions.height10 / 3),
+            Text(
+              [
+                person.designation.trim(),
+                person.department.trim(),
+              ].where((s) => s.isNotEmpty).join(' · '),
+              style: TextStyle(
+                fontSize: Dimensions.font16 * 0.8,
+                color: context.colors.textTertiary,
+              ),
+            ),
+          ],
+          if (person.email.trim().isNotEmpty) ...[
+            SizedBox(height: Dimensions.height10 / 2),
+            _iconLine(context, Icons.email_outlined, person.email.trim()),
+          ],
+          if (person.workPhone.trim().isNotEmpty) ...[
+            SizedBox(height: Dimensions.height10 / 2),
+            _iconLine(
+              context,
+              Icons.phone_outlined,
+              '${person.workPhoneCountryCode}-${person.workPhone.trim()}',
+            ),
+          ],
+          if (person.mobile.trim().isNotEmpty) ...[
+            SizedBox(height: Dimensions.height10 / 2),
+            _iconLine(
+              context,
+              Icons.smartphone_outlined,
+              '${person.mobileCountryCode}-${person.mobile.trim()}',
+            ),
+          ],
+          SizedBox(height: Dimensions.height15),
+          Divider(height: 1, color: context.colors.border),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconLine(BuildContext context, IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: Dimensions.iconSize16,
+          color: context.colors.textSecondary,
+        ),
+        SizedBox(width: Dimensions.width10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: Dimensions.font16 * 0.85,
+              color: context.colors.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

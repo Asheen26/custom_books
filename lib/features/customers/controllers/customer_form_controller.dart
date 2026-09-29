@@ -1,10 +1,10 @@
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
-import 'package:custom_books/features/customers/viewmodels/customers_list_viewmodel.dart';
+import 'package:custom_books/features/customers/viewmodels/customer_form_viewmodel.dart';
 import 'package:flutter/material.dart';
 
 class CustomerFormController extends ChangeNotifier {
-  final _vm = CustomersListViewModel();
+  final _vm = CustomerFormViewModel();
 
   bool _isSaving = false;
   bool get isSaving => _isSaving;

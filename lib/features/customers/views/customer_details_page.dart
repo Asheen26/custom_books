@@ -4,6 +4,7 @@ import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/bottom_sheet_drag_handle.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
+import 'package:custom_books/features/customers/controllers/customer_detail_controller.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/views/add_customer_page.dart';
 import 'package:custom_books/features/customers/widgets/customer_details_page_widgets/comments_tab.dart';
@@ -30,7 +31,13 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _commentController = TextEditingController();
-  bool _isLoading = true;
+  final CustomerDetailController _controller = CustomerDetailController();
+
+  /// The customer currently displayed: the freshly fetched one when available,
+  /// otherwise the (partial) customer passed in from the list.
+  CustomerModel get _customer => _controller.customer ?? widget.customer;
+
+  bool get _isLoading => _controller.isLoading && _controller.customer == null;
 
   @override
   void initState() {
@@ -40,29 +47,35 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
       '🎯 CustomerDetailsPage initialized for: ${widget.customer.name}',
       name: 'CustomerDetailsPage',
     );
+    _controller.addListener(_onControllerChanged);
     _load();
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _tabController.dispose();
     _commentController.dispose();
     super.dispose();
   }
 
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    await _controller.load(widget.customer.id);
     if (!mounted) return;
-    setState(() => _isLoading = false);
+    if (_controller.errorMessage != null) {
+      ToastificationHelper.showError(context, _controller.errorMessage!);
+    }
   }
 
   void _editCustomer() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => AddCustomerPage(customer: widget.customer),
-      ),
+      MaterialPageRoute(builder: (_) => AddCustomerPage(customer: _customer)),
     );
   }
 
@@ -167,7 +180,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                 physics: const BouncingScrollPhysics(),
                 slivers: [
                   CustomSliverAppBar(
-                    title: widget.customer.name,
+                    title: _customer.name,
                     leadingType: AppBarLeadingType.back,
                     onLeadingPressed: () {
                       appLog(
@@ -189,7 +202,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  AddCustomerPage(customer: widget.customer),
+                                  AddCustomerPage(customer: _customer),
                             ),
                           );
                         },
@@ -249,7 +262,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                                 ),
                                 SizedBox(height: Dimensions.height10 / 2),
                                 Text(
-                                  '₹${widget.customer.receivables.toStringAsFixed(2)}',
+                                  '₹${_customer.receivables.toStringAsFixed(2)}',
                                   style: TextStyle(
                                     fontSize: Dimensions.font26,
                                     fontWeight: FontWeight.w800,
@@ -283,7 +296,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                                 ),
                                 SizedBox(height: Dimensions.height10 / 2),
                                 Text(
-                                  '₹${widget.customer.unusedCredits.toStringAsFixed(2)}',
+                                  '₹${_customer.unusedCredits.toStringAsFixed(2)}',
                                   style: TextStyle(
                                     fontSize: Dimensions.font26,
                                     fontWeight: FontWeight.w800,
@@ -344,19 +357,19 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                               SizedBox(height: Dimensions.height20),
 
                               ContactInformationSection(
-                                customer: widget.customer,
+                                customer: _customer,
                                 onDial: _dial,
                                 onSendEmail: _sendEmail,
                               ),
 
                               ReceivablesSectionCard(
-                                customer: widget.customer,
+                                customer: _customer,
                                 onEditCustomer: _editCustomer,
                               ),
 
-                              const MoreInformationSection(),
+                              MoreInformationSection(customer: _customer),
 
-                              const ContactPersonsSection(),
+                              ContactPersonsSection(customer: _customer),
 
                               SizedBox(height: Dimensions.height30),
                             ],
@@ -383,8 +396,7 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        NewInvoicePage(customer: widget.customer),
+                    builder: (context) => NewInvoicePage(customer: _customer),
                   ),
                 );
               },

@@ -34,6 +34,24 @@ class CustomerAddressDraft {
       fax.trim().isEmpty &&
       phone.trim().isEmpty;
 
+  factory CustomerAddressDraft.fromJson(Map<String, dynamic> json) {
+    String s(dynamic v) => (v ?? '').toString();
+    return CustomerAddressDraft(
+      attention: s(json['attention']),
+      country: s(json['country']),
+      street1: s(json['street1']),
+      street2: s(json['street2']),
+      city: s(json['city']),
+      state: s(json['state']),
+      zipCode: s(json['zip_code']),
+      fax: s(json['fax']),
+      phoneCountryCode: s(json['phone_country_code']).isEmpty
+          ? '+91'
+          : s(json['phone_country_code']),
+      phone: s(json['phone']),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
     'attention': attention.trim(),
     'country': country.trim(),
@@ -81,6 +99,26 @@ class CustomerContactPersonDraft {
       mobile.trim().isEmpty &&
       designation.trim().isEmpty &&
       department.trim().isEmpty;
+
+  factory CustomerContactPersonDraft.fromJson(Map<String, dynamic> json) {
+    String s(dynamic v) => (v ?? '').toString();
+    return CustomerContactPersonDraft(
+      salutation: s(json['salutation']),
+      firstName: s(json['first_name']),
+      lastName: s(json['last_name']),
+      email: s(json['email']),
+      workPhoneCountryCode: s(json['work_phone_country_code']).isEmpty
+          ? '+91'
+          : s(json['work_phone_country_code']),
+      workPhone: s(json['work_phone']),
+      mobileCountryCode: s(json['mobile_country_code']).isEmpty
+          ? '+91'
+          : s(json['mobile_country_code']),
+      mobile: s(json['mobile']),
+      designation: s(json['designation']),
+      department: s(json['department']),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     if (salutation.isNotEmpty) 'salutation': salutation,
