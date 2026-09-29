@@ -5,11 +5,15 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/customers/controllers/customer_form_controller.dart';
+import 'package:custom_books/features/customers/models/customer_draft.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/views/add_address_page.dart';
 import 'package:custom_books/features/customers/views/add_contact_person_page.dart';
 import 'package:custom_books/features/customers/widgets/add_customer_page_widgets/customer_custom_text_field.dart';
 import 'package:custom_books/features/customers/widgets/add_customer_page_widgets/add_customer_info_card.dart';
+import 'package:custom_books/features/customers/widgets/add_customer_page_widgets/address_summary_card.dart';
+import 'package:custom_books/features/customers/widgets/add_customer_page_widgets/contact_persons_summary_card.dart';
 import 'package:custom_books/features/customers/widgets/form_section_card.dart';
 import 'package:custom_books/features/customers/widgets/add_customer_page_widgets/other_details_card.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +29,8 @@ class AddCustomerPage extends StatefulWidget {
 
 class _AddCustomerPageState extends State<AddCustomerPage>
     with UnsavedChangesMixin {
+  final CustomerFormController _formController = CustomerFormController();
+
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _websiteController = TextEditingController();
   final TextEditingController _facebookController = TextEditingController();
@@ -39,11 +45,23 @@ class _AddCustomerPageState extends State<AddCustomerPage>
       TextEditingController();
   final TextEditingController _remarksController = TextEditingController();
 
-  final String _selectedTaxTreatment = 'Select a Tax Treatment';
-  final String _selectedPlaceOfSupply = 'Select a Place Of Supply';
+  String _customerType = 'Business';
+  String _salutation = '';
+  String _phoneCountryCode = '+91';
+  String _mobileCountryCode = '+91';
+
+  String _selectedTaxTreatment = 'Select a Tax Treatment';
+  String _selectedPlaceOfSupply = 'Select a Place Of Supply';
   String _selectedCurrency = 'INR- Indian Rupee';
   String _selectedAccountsReceivable = 'Select a Accounts Receivable';
-  String _selectedAccountsPayable = 'Select a Accounts Payable';
+  final String _selectedAccountsPayable = 'Select a Accounts Payable';
+  String _selectedPaymentTerms = 'Due on Receipt';
+  String _selectedPortalLanguage = 'English';
+  bool _allowPortalAccess = false;
+
+  CustomerAddressResult? _addressResult;
+  final List<CustomerContactPersonDraft> _contactPersons = [];
+
   bool _isLoading = true;
 
   @override
@@ -63,7 +81,6 @@ class _AddCustomerPageState extends State<AddCustomerPage>
     _openingBalanceController.addListener(markDirty);
     _remarksController.addListener(markDirty);
     if (widget.customer != null) {
-      // Pre-populate with customer data for editing
       _displayNameController.text = widget.customer!.name;
       _emailController.text = widget.customer!.email ?? '';
       _phoneController.text = widget.customer!.workPhone ?? '';
@@ -77,6 +94,7 @@ class _AddCustomerPageState extends State<AddCustomerPage>
 
   @override
   void dispose() {
+    _formController.dispose();
     _firstNameController.removeListener(markDirty);
     _websiteController.removeListener(markDirty);
     _facebookController.removeListener(markDirty);
@@ -104,7 +122,6 @@ class _AddCustomerPageState extends State<AddCustomerPage>
     super.dispose();
   }
 
-  /// Simulates preparing the form so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 700));
@@ -125,7 +142,6 @@ class _AddCustomerPageState extends State<AddCustomerPage>
               : CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
-                    // App Bar
                     CustomSliverAppBar(
                       title: widget.customer != null
                           ? 'Edit Customer'
@@ -150,19 +166,19 @@ class _AddCustomerPageState extends State<AddCustomerPage>
                         ),
                         SizedBox(width: Dimensions.width10),
                         AppBarElevatedButton(
-                          label: 'SAVE',
-                          onPressed: _saveCustomer,
+                          label: _formController.isSaving ? 'SAVING…' : 'SAVE',
+                          onPressed: _formController.isSaving
+                              ? null
+                              : _saveCustomer,
                         ),
                         SizedBox(width: Dimensions.width20),
                       ],
                     ),
 
-                    // Content
                     SliverPadding(
                       padding: EdgeInsets.all(Dimensions.width20),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
-                          // Customer Information Card
                           AddCustomerInfoCard(
                             firstNameController: _firstNameController,
                             lastNameController: _lastNameController,
@@ -172,11 +188,16 @@ class _AddCustomerPageState extends State<AddCustomerPage>
                             phoneController: _phoneController,
                             mobileController: _mobileController,
                             onChanged: markDirty,
+                            onCustomerTypeChanged: (v) => _customerType = v,
+                            onSalutationChanged: (v) => _salutation = v,
+                            onPhoneCountryChanged: (v) =>
+                                _phoneCountryCode = v ?? _phoneCountryCode,
+                            onMobileCountryChanged: (v) =>
+                                _mobileCountryCode = v ?? _mobileCountryCode,
                           ),
 
                           SizedBox(height: Dimensions.height15),
 
-                          // Other Details Card
                           OtherDetailsCard(
                             selectedCurrency: _selectedCurrency,
                             selectedAccountsReceivable:
@@ -184,6 +205,19 @@ class _AddCustomerPageState extends State<AddCustomerPage>
                             selectedAccountsPayable: _selectedAccountsPayable,
                             selectedTaxTreatment: _selectedTaxTreatment,
                             selectedPlaceOfSupply: _selectedPlaceOfSupply,
+                            openingBalanceController: _openingBalanceController,
+                            websiteController: _websiteController,
+                            facebookController: _facebookController,
+                            twitterController: _twitterController,
+                            onTaxTreatmentChanged: (v) =>
+                                _selectedTaxTreatment = v,
+                            onPlaceOfSupplyChanged: (v) =>
+                                _selectedPlaceOfSupply = v,
+                            onPaymentTermsChanged: (v) =>
+                                _selectedPaymentTerms = v,
+                            onPortalLanguageChanged: (v) =>
+                                _selectedPortalLanguage = v,
+                            onAllowPortalChanged: (v) => _allowPortalAccess = v,
                             onCurrencyChanged: (value) {
                               setState(() => _selectedCurrency = value!);
                               markDirty();
@@ -195,55 +229,45 @@ class _AddCustomerPageState extends State<AddCustomerPage>
                               markDirty();
                             },
                             onAccountsPayableChanged: (value) {
-                              setState(() => _selectedAccountsPayable = value!);
                               markDirty();
                             },
                           ),
 
                           SizedBox(height: Dimensions.height15),
 
-                          // Add Billing & Shipping Address Button
-                          _buildExpandableButton(
-                            'Add Billing & Shipping address',
-                            onTap: () async {
-                              appLog(
-                                '📍 Add Address tapped',
-                                name: 'AddCustomerPage',
-                              );
-                              final saved = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const AddAddressPage(),
-                                ),
-                              );
-                              if (saved == true) markDirty();
-                            },
-                          ),
+                          if (_addressResult == null ||
+                              (_addressResult!.billing.isEmpty &&
+                                  _addressResult!.shipping.isEmpty))
+                            _buildExpandableButton(
+                              'Add Billing & Shipping address',
+                              onTap: _openAddressPage,
+                            )
+                          else
+                            AddressSummaryCard(
+                              billing: _addressResult!.billing,
+                              shipping: _addressResult!.shipping,
+                              onEdit: _openAddressPage,
+                            ),
 
                           SizedBox(height: Dimensions.height15),
 
-                          // Add Contact Person Button
-                          _buildExpandableButton(
-                            'Add Contact Person',
-                            onTap: () async {
-                              appLog(
-                                '👤 Add Contact Person tapped',
-                                name: 'AddCustomerPage',
-                              );
-                              final saved = await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const AddContactPersonPage(),
-                                ),
-                              );
-                              if (saved == true) markDirty();
-                            },
-                          ),
+                          if (_contactPersons.isEmpty)
+                            _buildExpandableButton(
+                              'Add Contact Person',
+                              onTap: _openContactPersonPage,
+                            )
+                          else
+                            ContactPersonsSummaryCard(
+                              contactPersons: _contactPersons,
+                              onAdd: _openContactPersonPage,
+                              onRemove: (index) {
+                                setState(() => _contactPersons.removeAt(index));
+                                markDirty();
+                              },
+                            ),
 
                           SizedBox(height: Dimensions.height15),
 
-                          // Remarks Card
                           FormSectionCard(
                             title: 'Remarks (For Internal Use)',
                             children: [
@@ -267,10 +291,158 @@ class _AddCustomerPageState extends State<AddCustomerPage>
     );
   }
 
-  void _saveCustomer() {
+  Future<void> _openAddressPage() async {
+    appLog('📍 Add Address tapped', name: 'AddCustomerPage');
+    final result = await Navigator.push<CustomerAddressResult>(
+      context,
+      MaterialPageRoute(builder: (context) => const AddAddressPage()),
+    );
+    if (result != null) {
+      setState(() => _addressResult = result);
+      markDirty();
+    }
+  }
+
+  Future<void> _openContactPersonPage() async {
+    appLog('👤 Add Contact Person tapped', name: 'AddCustomerPage');
+    final result = await Navigator.push<CustomerContactPersonDraft>(
+      context,
+      MaterialPageRoute(builder: (context) => const AddContactPersonPage()),
+    );
+    if (result != null && !result.isEmpty) {
+      setState(() => _contactPersons.add(result));
+      markDirty();
+    }
+  }
+
+  Map<String, dynamic> _buildRequestBody({
+    required String displayName,
+    required String firstName,
+    required String lastName,
+  }) {
+    final body = <String, dynamic>{
+      'customer_type': _customerType.toLowerCase(),
+      if (CustomerFieldMaps.keyFor(CustomerFieldMaps.salutation, _salutation) !=
+          null)
+        'salutation': CustomerFieldMaps.keyFor(
+          CustomerFieldMaps.salutation,
+          _salutation,
+        ),
+      'first_name': firstName,
+      'last_name': lastName,
+      'company_name': _companyNameController.text.trim(),
+      'display_name': displayName,
+      'email': _emailController.text.trim(),
+      'phone_country_code': _phoneCountryCode,
+      'phone': _phoneController.text.trim(),
+      'mobile_country_code': _mobileCountryCode,
+      'mobile': _mobileController.text.trim(),
+      if (CustomerFieldMaps.keyFor(
+            CustomerFieldMaps.taxTreatment,
+            _selectedTaxTreatment,
+          ) !=
+          null)
+        'tax_treatment': CustomerFieldMaps.keyFor(
+          CustomerFieldMaps.taxTreatment,
+          _selectedTaxTreatment,
+        ),
+      if (!_selectedPlaceOfSupply.startsWith('Select'))
+        'place_of_supply': _selectedPlaceOfSupply,
+      if (CustomerFieldMaps.keyFor(
+            CustomerFieldMaps.currency,
+            _selectedCurrency,
+          ) !=
+          null)
+        'currency': CustomerFieldMaps.keyFor(
+          CustomerFieldMaps.currency,
+          _selectedCurrency,
+        ),
+      if (CustomerFieldMaps.keyFor(
+            CustomerFieldMaps.accountsReceivable,
+            _selectedAccountsReceivable,
+          ) !=
+          null)
+        'accounts_receivable': CustomerFieldMaps.keyFor(
+          CustomerFieldMaps.accountsReceivable,
+          _selectedAccountsReceivable,
+        ),
+      if (CustomerFieldMaps.keyFor(
+            CustomerFieldMaps.paymentTerms,
+            _selectedPaymentTerms,
+          ) !=
+          null)
+        'payment_terms': CustomerFieldMaps.keyFor(
+          CustomerFieldMaps.paymentTerms,
+          _selectedPaymentTerms,
+        ),
+      if (_openingBalanceController.text.trim().isNotEmpty)
+        'opening_balance': _openingBalanceController.text.trim(),
+      'allow_portal_access': _allowPortalAccess,
+      if (CustomerFieldMaps.keyFor(
+            CustomerFieldMaps.portalLanguage,
+            _selectedPortalLanguage,
+          ) !=
+          null)
+        'portal_language': CustomerFieldMaps.keyFor(
+          CustomerFieldMaps.portalLanguage,
+          _selectedPortalLanguage,
+        ),
+      if (_websiteController.text.trim().isNotEmpty)
+        'website': _websiteController.text.trim(),
+      if (_remarksController.text.trim().isNotEmpty)
+        'remarks': _remarksController.text.trim(),
+    };
+
+    if (_addressResult != null) {
+      if (!_addressResult!.billing.isEmpty) {
+        body['billing_address'] = _addressResult!.billing.toJson();
+      }
+      if (!_addressResult!.shipping.isEmpty) {
+        body['shipping_address'] = _addressResult!.shipping.toJson();
+      }
+    }
+
+    if (_contactPersons.isNotEmpty) {
+      body['contact_persons'] = _contactPersons.map((c) => c.toJson()).toList();
+    }
+
+    final socialLinks = <Map<String, dynamic>>[];
+    if (_websiteController.text.trim().isNotEmpty) {
+      socialLinks.add(
+        CustomerSocialLinkDraft(
+          platform: 'website',
+          url: _websiteController.text,
+        ).toJson(),
+      );
+    }
+    if (_facebookController.text.trim().isNotEmpty) {
+      socialLinks.add(
+        CustomerSocialLinkDraft(
+          platform: 'facebook',
+          url: _facebookController.text,
+        ).toJson(),
+      );
+    }
+    if (_twitterController.text.trim().isNotEmpty) {
+      socialLinks.add(
+        CustomerSocialLinkDraft(
+          platform: 'twitter',
+          url: _twitterController.text,
+        ).toJson(),
+      );
+    }
+    if (socialLinks.isNotEmpty) {
+      body['social_links'] = socialLinks;
+    }
+
+    return body;
+  }
+
+  Future<void> _saveCustomer() async {
     appLog('💾 Save button tapped', name: 'AddCustomerPage');
     final displayName = _displayNameController.text.trim();
     final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
     if (displayName.isEmpty && firstName.isEmpty) {
       ToastificationHelper.showError(
         context,
@@ -278,10 +450,31 @@ class _AddCustomerPageState extends State<AddCustomerPage>
       );
       return;
     }
-    final name = displayName.isNotEmpty ? displayName : firstName;
-    ToastificationHelper.showSuccess(context, '$name saved successfully.');
-    markClean();
-    Navigator.pop(context);
+    final resolvedDisplayName = displayName.isNotEmpty
+        ? displayName
+        : firstName;
+
+    final body = _buildRequestBody(
+      displayName: resolvedDisplayName,
+      firstName: firstName,
+      lastName: lastName,
+    );
+
+    final success = await _formController.createCustomer(body);
+    if (!mounted) return;
+
+    if (success) {
+      markClean();
+      final name = _formController.createdCustomer?.name ?? resolvedDisplayName;
+      ToastificationHelper.showSuccess(context, '$name saved successfully.');
+      Navigator.pop(context, true);
+    } else {
+      setState(() {});
+      ToastificationHelper.showError(
+        context,
+        _formController.errorMessage ?? 'Could not save the customer.',
+      );
+    }
   }
 
   Widget _buildExpandableButton(String label, {VoidCallback? onTap}) {

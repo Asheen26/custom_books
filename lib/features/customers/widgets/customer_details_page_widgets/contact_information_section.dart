@@ -29,7 +29,6 @@ class ContactInformationSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Title
           Text(
             'CONTACT INFORMATION',
             style: TextStyle(
@@ -41,7 +40,6 @@ class ContactInformationSection extends StatelessWidget {
           ),
           SizedBox(height: Dimensions.height20),
 
-          // Mobile
           _buildContactInfoRow(
             context: context,
             icon: Icons.phone_iphone_rounded,
@@ -57,7 +55,6 @@ class ContactInformationSection extends StatelessWidget {
 
           SizedBox(height: Dimensions.height20),
 
-          // Work Phone
           _buildContactInfoRow(
             context: context,
             icon: Icons.phone_rounded,
@@ -73,7 +70,6 @@ class ContactInformationSection extends StatelessWidget {
 
           SizedBox(height: Dimensions.height20),
 
-          // Email
           _buildContactInfoRow(
             context: context,
             icon: Icons.email_rounded,
@@ -106,7 +102,6 @@ class ContactInformationSection extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          // Icon
           Container(
             width: Dimensions.height45,
             height: Dimensions.height45,
@@ -119,7 +114,6 @@ class ContactInformationSection extends StatelessWidget {
 
           SizedBox(width: Dimensions.width15),
 
-          // Label and Value/Placeholder
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

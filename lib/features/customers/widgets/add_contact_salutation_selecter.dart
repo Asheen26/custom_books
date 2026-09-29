@@ -29,7 +29,6 @@ class AddContactSalutationSelecter extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header
               Container(
                 padding: EdgeInsets.symmetric(
                   horizontal: Dimensions.width20,
@@ -37,10 +36,7 @@ class AddContactSalutationSelecter extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(
-                      color: context.colors.border,
-                      width: 1,
-                    ),
+                    bottom: BorderSide(color: context.colors.border, width: 1),
                   ),
                 ),
                 child: Row(
@@ -66,7 +62,6 @@ class AddContactSalutationSelecter extends StatelessWidget {
                 ),
               ),
 
-              // Options
               ListView.builder(
                 shrinkWrap: true,
                 padding: EdgeInsets.all(Dimensions.width20),
@@ -87,9 +82,7 @@ class AddContactSalutationSelecter extends StatelessWidget {
                       );
                     },
                     child: Container(
-                      margin: EdgeInsets.only(
-                        bottom: Dimensions.height10,
-                      ),
+                      margin: EdgeInsets.only(bottom: Dimensions.height10),
                       padding: EdgeInsets.symmetric(
                         horizontal: Dimensions.width15,
                         vertical: Dimensions.height15,
@@ -109,8 +102,7 @@ class AddContactSalutationSelecter extends StatelessWidget {
                         ),
                       ),
                       child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             option,
@@ -158,13 +150,9 @@ class AddContactSalutationSelecter extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: context.colors.surfaceLight,
-          borderRadius: BorderRadius.circular(
-            Dimensions.radius15,
-          ),
+          borderRadius: BorderRadius.circular(Dimensions.radius15),
           border: Border.all(
-            color: isEmpty
-                ? context.colors.border
-                : AppColors.primary,
+            color: isEmpty ? context.colors.border : AppColors.primary,
             width: isEmpty ? 1 : 2,
           ),
         ),
@@ -180,9 +168,7 @@ class AddContactSalutationSelecter extends StatelessWidget {
                   color: isEmpty
                       ? context.colors.textTertiary
                       : context.colors.textPrimary,
-                  fontWeight: isEmpty
-                      ? FontWeight.w500
-                      : FontWeight.w600,
+                  fontWeight: isEmpty ? FontWeight.w500 : FontWeight.w600,
                 ),
               ),
             ),

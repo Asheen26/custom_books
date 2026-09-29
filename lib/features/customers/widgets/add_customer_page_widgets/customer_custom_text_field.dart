@@ -99,31 +99,18 @@ class CustomerCustomTextField extends StatelessWidget {
             ),
 
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(
-                Dimensions.radius15,
-              ),
-              borderSide: BorderSide(
-                color: context.colors.border,
-              ),
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              borderSide: BorderSide(color: context.colors.border),
             ),
 
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(
-                Dimensions.radius15,
-              ),
-              borderSide: BorderSide(
-                color: context.colors.border,
-              ),
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              borderSide: BorderSide(color: context.colors.border),
             ),
 
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(
-                Dimensions.radius15,
-              ),
-              borderSide: BorderSide(
-                color: AppColors.primary,
-                width: 2,
-              ),
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
             ),
           ),
         ),

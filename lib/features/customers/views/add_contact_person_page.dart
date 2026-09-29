@@ -5,6 +5,7 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/customers/models/customer_draft.dart';
 import 'package:custom_books/features/customers/widgets/add_contact_salutation_selecter.dart';
 import 'package:flutter/material.dart';
 
@@ -38,6 +39,12 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
   String _workPhoneCountryCode = '+91';
   String _mobileCountryCode = '+91';
   bool _isLoading = true;
+  String? _emailError;
+
+  bool get _isEmailValid {
+    final email = _emailController.text.trim();
+    return email.isEmpty || (email.contains('@') && email.contains('.com'));
+  }
 
   @override
   void initState() {
@@ -71,7 +78,6 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
     super.dispose();
   }
 
-  /// Simulates preparing the form so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 700));
@@ -91,7 +97,6 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
             : CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                  // App Bar
                   CustomSliverAppBar(
                     title: 'Add Contact Person',
                     leadingType: AppBarLeadingType.back,
@@ -119,24 +124,47 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
                             '💾 Save button tapped',
                             name: 'AddContactPersonPage',
                           );
+                          if (!_isEmailValid) {
+                            setState(() => _emailError = 'Enter a valid mail');
+                            ToastificationHelper.showError(
+                              context,
+                              'Enter a valid mail',
+                            );
+                            return;
+                          }
+                          final result = CustomerContactPersonDraft(
+                            salutation:
+                                CustomerFieldMaps.keyFor(
+                                  CustomerFieldMaps.salutation,
+                                  _selectedSalutation,
+                                ) ??
+                                '',
+                            firstName: _firstNameController.text,
+                            lastName: _lastNameController.text,
+                            email: _emailController.text,
+                            workPhoneCountryCode: _workPhoneCountryCode,
+                            workPhone: _workPhoneController.text,
+                            mobileCountryCode: _mobileCountryCode,
+                            mobile: _mobileController.text,
+                            designation: _designationController.text,
+                            department: _departmentController.text,
+                          );
                           ToastificationHelper.showSuccess(
                             context,
                             'Contact person saved.',
                           );
                           markClean();
-                          Navigator.pop(context, true);
+                          Navigator.pop(context, result);
                         },
                       ),
                       SizedBox(width: Dimensions.width20),
                     ],
                   ),
 
-                  // Content
                   SliverPadding(
                     padding: EdgeInsets.all(Dimensions.width20),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
-                        // Contact Person Card
                         Container(
                           padding: EdgeInsets.all(Dimensions.width20),
                           decoration: BoxDecoration(
@@ -206,6 +234,12 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
                                 'Email',
                                 _emailController,
                                 keyboardType: TextInputType.emailAddress,
+                                errorText: _emailError,
+                                onChanged: (_) {
+                                  if (_emailError != null) {
+                                    setState(() => _emailError = null);
+                                  }
+                                },
                               ),
                               SizedBox(height: Dimensions.height20),
                               Text(
@@ -278,10 +312,13 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
     String hint,
     TextEditingController controller, {
     TextInputType? keyboardType,
+    String? errorText,
+    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      onChanged: onChanged,
       style: TextStyle(
         fontSize: Dimensions.font16 * 0.85,
         color: context.colors.textPrimary,
@@ -291,6 +328,11 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
         hintStyle: TextStyle(
           color: context.colors.textTertiary,
           fontSize: Dimensions.font16 * 0.85,
+        ),
+        errorText: errorText,
+        errorStyle: TextStyle(
+          fontSize: Dimensions.font16 * 0.75,
+          color: AppColors.error,
         ),
         filled: true,
         fillColor: context.colors.surfaceLight,
@@ -309,6 +351,14 @@ class _AddContactPersonPageState extends State<AddContactPersonPage>
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(Dimensions.radius15),
           borderSide: BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(Dimensions.radius15),
+          borderSide: BorderSide(color: AppColors.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(Dimensions.radius15),
+          borderSide: BorderSide(color: AppColors.error, width: 2),
         ),
       ),
     );

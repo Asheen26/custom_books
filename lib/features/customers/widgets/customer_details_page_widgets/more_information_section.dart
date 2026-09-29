@@ -7,8 +7,7 @@ class MoreInformationSection extends StatefulWidget {
   const MoreInformationSection({super.key});
 
   @override
-  State<MoreInformationSection> createState() =>
-      _MoreInformationSectionState();
+  State<MoreInformationSection> createState() => _MoreInformationSectionState();
 }
 
 class _MoreInformationSectionState extends State<MoreInformationSection> {

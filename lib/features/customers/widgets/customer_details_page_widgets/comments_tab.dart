@@ -24,7 +24,6 @@ class _CommentsTabState extends State<CommentsTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Empty state
         Expanded(
           child: Center(
             child: Text(
@@ -37,7 +36,6 @@ class _CommentsTabState extends State<CommentsTab> {
           ),
         ),
 
-        // Comment input
         Container(
           padding: EdgeInsets.all(Dimensions.width20),
           decoration: BoxDecoration(

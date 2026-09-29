@@ -50,7 +50,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
     super.dispose();
   }
 
-  /// Simulates fetching details so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 900));
@@ -167,7 +166,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
             : CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                  // Custom Sliver App Bar
                   CustomSliverAppBar(
                     title: widget.customer.name,
                     leadingType: AppBarLeadingType.back,
@@ -221,7 +219,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                     ],
                   ),
 
-                  // Header Section
                   SliverToBoxAdapter(
                     child: Container(
                       width: double.infinity,
@@ -237,7 +234,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                       ),
                       child: Row(
                         children: [
-                          // Receivables
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +268,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
 
                           SizedBox(width: Dimensions.width20),
 
-                          // Unused Credits
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +298,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                     ),
                   ),
 
-                  // Tab Bar
                   SliverToBoxAdapter(
                     child: Container(
                       decoration: BoxDecoration(
@@ -339,7 +333,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                     ),
                   ),
 
-                  // Tab Bar View Content
                   SliverFillRemaining(
                     child: TabBarView(
                       controller: _tabController,
@@ -350,23 +343,19 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
                             children: [
                               SizedBox(height: Dimensions.height20),
 
-                              // Contact Information Section
                               ContactInformationSection(
                                 customer: widget.customer,
                                 onDial: _dial,
                                 onSendEmail: _sendEmail,
                               ),
 
-                              // Receivables Section
                               ReceivablesSectionCard(
                                 customer: widget.customer,
                                 onEditCustomer: _editCustomer,
                               ),
 
-                              // More Information Section
                               const MoreInformationSection(),
 
-                              // Contact Persons Section
                               const ContactPersonsSection(),
 
                               SizedBox(height: Dimensions.height30),
@@ -384,7 +373,6 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
       floatingActionButton: AnimatedBuilder(
         animation: _tabController,
         builder: (context, child) {
-          // Show FAB only on Transactions tab (index 1)
           if (_tabController.index == 1) {
             return FloatingActionButton(
               onPressed: () {

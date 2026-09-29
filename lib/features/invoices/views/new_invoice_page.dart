@@ -8,7 +8,7 @@ import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/invoices/models/invoice_model.dart';
-import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_text_field.dart';
+import 'package:custom_books/core/widgets/labeled_text_field.dart';
 import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_customer_info_card.dart';
 import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/email_communications_card.dart';
 import 'package:custom_books/features/invoices/widgets/invoice_form_helpers.dart';
@@ -269,14 +269,14 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                             borderRadius: Dimensions.radius20,
                             showShadow: true,
                             children: [
-                              InvoiceTextField(
+                              LabeledTextField(
                                 label: 'Salesperson',
                                 controller: _salespersonController,
                                 placeholder: 'Select or Add Salesperson',
                                 suffixIcon: Icons.keyboard_arrow_down_rounded,
                               ),
                               SizedBox(height: Dimensions.height20),
-                              InvoiceTextField(
+                              LabeledTextField(
                                 label: 'Subject',
                                 controller: _subjectController,
                                 placeholder: 'What is this invoice for?',

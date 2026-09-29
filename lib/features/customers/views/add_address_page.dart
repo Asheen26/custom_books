@@ -5,7 +5,15 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/customers/models/customer_draft.dart';
 import 'package:flutter/material.dart';
+
+class CustomerAddressResult {
+  final CustomerAddressDraft billing;
+  final CustomerAddressDraft shipping;
+
+  const CustomerAddressResult({required this.billing, required this.shipping});
+}
 
 class AddAddressPage extends StatefulWidget {
   const AddAddressPage({super.key});
@@ -16,7 +24,6 @@ class AddAddressPage extends StatefulWidget {
 
 class _AddAddressPageState extends State<AddAddressPage>
     with UnsavedChangesMixin {
-  // Billing Address Controllers
   final TextEditingController _billingAttentionController =
       TextEditingController();
   final TextEditingController _billingCountryController =
@@ -31,7 +38,6 @@ class _AddAddressPageState extends State<AddAddressPage>
   final TextEditingController _billingFaxController = TextEditingController();
   final TextEditingController _billingPhoneController = TextEditingController();
 
-  // Shipping Address Controllers
   final TextEditingController _shippingAttentionController =
       TextEditingController();
   final TextEditingController _shippingCountryController =
@@ -117,7 +123,6 @@ class _AddAddressPageState extends State<AddAddressPage>
     super.dispose();
   }
 
-  /// Simulates preparing the form so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 700));
@@ -154,7 +159,6 @@ class _AddAddressPageState extends State<AddAddressPage>
               : CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
-                    // App Bar
                     CustomSliverAppBar(
                       title: 'Address',
                       leadingType: AppBarLeadingType.back,
@@ -168,24 +172,48 @@ class _AddAddressPageState extends State<AddAddressPage>
                               '💾 Save button tapped',
                               name: 'AddAddressPage',
                             );
+                            final result = CustomerAddressResult(
+                              billing: CustomerAddressDraft(
+                                attention: _billingAttentionController.text,
+                                country: _billingCountryController.text,
+                                street1: _billingStreet1Controller.text,
+                                street2: _billingStreet2Controller.text,
+                                city: _billingCityController.text,
+                                state: _billingStateController.text,
+                                zipCode: _billingZipController.text,
+                                fax: _billingFaxController.text,
+                                phoneCountryCode: _billingPhoneCountryCode,
+                                phone: _billingPhoneController.text,
+                              ),
+                              shipping: CustomerAddressDraft(
+                                attention: _shippingAttentionController.text,
+                                country: _shippingCountryController.text,
+                                street1: _shippingStreet1Controller.text,
+                                street2: _shippingStreet2Controller.text,
+                                city: _shippingCityController.text,
+                                state: _shippingStateController.text,
+                                zipCode: _shippingZipController.text,
+                                fax: _shippingFaxController.text,
+                                phoneCountryCode: _shippingPhoneCountryCode,
+                                phone: _shippingPhoneController.text,
+                              ),
+                            );
                             ToastificationHelper.showSuccess(
                               context,
                               'Address saved.',
                             );
                             markClean();
-                            Navigator.pop(context, true);
+                            Navigator.pop(context, result);
                           },
                         ),
                         SizedBox(width: Dimensions.width20),
                       ],
                     ),
 
-                    // Content
                     SliverPadding(
                       padding: EdgeInsets.all(Dimensions.width20),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
-                          // Billing Address Card
                           _buildAddressCard(
                             'Billing Address',
                             _billingAttentionController,
@@ -205,7 +233,6 @@ class _AddAddressPageState extends State<AddAddressPage>
 
                           SizedBox(height: Dimensions.height20),
 
-                          // Copy Billing Address Button
                           Center(
                             child: TextButton(
                               onPressed: _copyBillingToShipping,
@@ -228,7 +255,6 @@ class _AddAddressPageState extends State<AddAddressPage>
 
                           SizedBox(height: Dimensions.height10),
 
-                          // Shipping Address Card
                           _buildAddressCard(
                             'Shipping Address',
                             _shippingAttentionController,

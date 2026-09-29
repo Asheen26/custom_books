@@ -3,7 +3,7 @@ import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/features/customers/widgets/add_customer_page_widgets/salutation_selector.dart';
 import 'package:custom_books/features/customers/widgets/form_section_card.dart';
-import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_text_field.dart';
+import 'package:custom_books/core/widgets/labeled_text_field.dart';
 import 'package:flutter/material.dart';
 
 class AddCustomerInfoCard extends StatefulWidget {
@@ -15,9 +15,12 @@ class AddCustomerInfoCard extends StatefulWidget {
   final TextEditingController phoneController;
   final TextEditingController mobileController;
 
-  /// Called whenever a non-text selection changes (customer type, salutation,
-  /// phone/mobile country code) so the parent can flag unsaved changes.
   final VoidCallback? onChanged;
+
+  final Function(String)? onCustomerTypeChanged;
+  final Function(String)? onSalutationChanged;
+  final Function(String?)? onPhoneCountryChanged;
+  final Function(String?)? onMobileCountryChanged;
 
   const AddCustomerInfoCard({
     super.key,
@@ -29,6 +32,10 @@ class AddCustomerInfoCard extends StatefulWidget {
     required this.phoneController,
     required this.mobileController,
     this.onChanged,
+    this.onCustomerTypeChanged,
+    this.onSalutationChanged,
+    this.onPhoneCountryChanged,
+    this.onMobileCountryChanged,
   });
 
   @override
@@ -40,8 +47,16 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
   String _phoneCountryCode = '+91';
   String _mobileCountryCode = '+91';
   String _customerType = 'Business';
+  String? _emailError;
 
   void _notifyChanged() => widget.onChanged?.call();
+
+  void _validateEmail(String value) {
+    final email = value.trim();
+    final bool valid =
+        email.isEmpty || (email.contains('@') && email.contains('.com'));
+    setState(() => _emailError = valid ? null : 'Enter a valid mail');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +115,7 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
                       setState(() {
                         _selectedSalutation = value;
                       });
+                      widget.onSalutationChanged?.call(value);
                       _notifyChanged();
                     },
                   ),
@@ -111,7 +127,7 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
 
             Expanded(
               flex: 2,
-              child: InvoiceTextField(
+              child: LabeledTextField(
                 label: 'First Name',
                 controller: widget.firstNameController,
               ),
@@ -121,21 +137,21 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
 
         SizedBox(height: Dimensions.height20),
 
-        InvoiceTextField(
+        LabeledTextField(
           label: 'Last Name',
           controller: widget.lastNameController,
         ),
 
         SizedBox(height: Dimensions.height20),
 
-        InvoiceTextField(
+        LabeledTextField(
           label: 'Company Name',
           controller: widget.companyNameController,
         ),
 
         SizedBox(height: Dimensions.height20),
 
-        InvoiceTextField(
+        LabeledTextField(
           label: 'Display Name',
           controller: widget.displayNameController,
           isRequired: true,
@@ -144,16 +160,20 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
 
         SizedBox(height: Dimensions.height20),
 
-        InvoiceTextField(
+        LabeledTextField(
           label: 'Email Address',
           controller: widget.emailController,
           hasInfo: true,
+          keyboardType: TextInputType.emailAddress,
+          errorText: _emailError,
+          onChanged: _validateEmail,
         ),
         SizedBox(height: Dimensions.height20),
         _buildPhoneField('Phone', widget.phoneController, _phoneCountryCode, (
           value,
         ) {
           setState(() => _phoneCountryCode = value!);
+          widget.onPhoneCountryChanged?.call(value);
           _notifyChanged();
         }, hasInfo: true),
         SizedBox(height: Dimensions.height20),
@@ -163,6 +183,7 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
           _mobileCountryCode,
           (value) {
             setState(() => _mobileCountryCode = value!);
+            widget.onMobileCountryChanged?.call(value);
             _notifyChanged();
           },
           hasInfo: true,
@@ -176,6 +197,7 @@ class _AddCustomerInfoCardState extends State<AddCustomerInfoCard> {
     return GestureDetector(
       onTap: () {
         setState(() => _customerType = label);
+        widget.onCustomerTypeChanged?.call(label);
         _notifyChanged();
         appLog('📝 Customer type changed to: $label', name: 'AddCustomerPage');
       },

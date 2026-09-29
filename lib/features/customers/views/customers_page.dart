@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
@@ -7,6 +9,7 @@ import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/empty_state_widget.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/drawer/views/custom_drawer.dart';
+import 'package:custom_books/features/customers/controllers/customers_list_controller.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/widgets/customer_page_widgets/customer_card_widget.dart';
 import 'package:custom_books/features/customers/widgets/customer_page_widgets/customer_filter_sheet.dart';
@@ -23,147 +26,72 @@ class CustomersPage extends StatefulWidget {
 }
 
 class _CustomersPageState extends State<CustomersPage> {
-  String _selectedFilter = 'Active Customers';
-  bool _searchOpen = false;
-  bool _isLoading = true;
+  final CustomersListController _controller = CustomersListController();
+  final ScrollController _scrollController = ScrollController();
   final _searchController = TextEditingController();
+  Timer? _searchDebounce;
+
+  String _selectedFilter = 'All Customers';
+  bool _searchOpen = false;
 
   String _sortField = 'Name';
   bool _sortAsc = true;
-
-  final List<String> _allFilterOptions = [
-    'All Customers',
-    'Active Customers',
-    'CRM Customers',
-    'Duplicate Customers',
-    'Inactive Customers',
-    'Customer Portal Enabled',
-    'Customer Portal Disabled',
-    'Overdue Customers',
-    'Unpaid Customers',
-    'Associated with Payment Options',
-  ];
 
   @override
   void initState() {
     super.initState();
     appLog('🎯 CustomersPage initialized', name: 'CustomersPage');
+    _controller.addListener(_onControllerChanged);
+    _scrollController.addListener(_onScroll);
+    _controller.loadOptions();
     _loadCustomers();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  /// Simulates fetching customers so the shimmer skeleton is shown briefly.
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 300) {
+      _controller.loadNextPage();
+    }
+  }
+
   Future<void> _loadCustomers() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    await _controller.loadFirstPage(
+      filter: _controller.filterKeyForLabel(_selectedFilter),
+      sortBy: _controller.sortKeyForLabel(_sortField),
+      sortOrder: _sortAsc ? 'asc' : 'desc',
+      search: _searchController.text.trim(),
+    );
     if (!mounted) return;
-    setState(() => _isLoading = false);
+    if (_controller.errorMessage != null) {
+      ToastificationHelper.showError(context, _controller.errorMessage!);
+    }
   }
 
-  // Dummy data based on the image
-  final List<CustomerModel> _customers = [
-    CustomerModel(
-      id: '1',
-      name: 'Amal',
-      receivables: 315.00,
-      unusedCredits: 0.00,
-      isActive: true,
-    ),
-    CustomerModel(
-      id: '2',
-      name: 'nabeel',
-      email: 'nabeelkari18@gmail.com',
-      receivables: 0.00,
-      unusedCredits: 0.00,
-      isActive: true,
-    ),
-    CustomerModel(
-      id: '3',
-      name: 'Nandhu',
-      receivables: 3430.00,
-      unusedCredits: 1210.00,
-      isActive: true,
-    ),
-    CustomerModel(
-      id: '4',
-      name: 'Parthiv Ajith',
-      receivables: 0.00,
-      unusedCredits: 0.00,
-      isActive: true,
-    ),
-    CustomerModel(
-      id: '5',
-      name: 'Parthiv Ajith',
-      receivables: 0.00,
-      unusedCredits: 1000.00,
-      isActive: true,
-    ),
-    CustomerModel(
-      id: '6',
-      name: 'Parthiv2 Ajith2',
-      receivables: 0.00,
-      unusedCredits: 0.00,
-      isActive: true,
-    ),
-  ];
-
-  List<CustomerModel> get _filteredCustomers {
-    var list = _customers;
-
-    // Apply filter
-    if (_selectedFilter == 'Active Customers') {
-      list = list.where((customer) => customer.isActive).toList();
-    } else if (_selectedFilter == 'Inactive Customers') {
-      list = list.where((customer) => !customer.isActive).toList();
-    } else if (_selectedFilter == 'Overdue Customers') {
-      list = list.where((customer) => customer.receivables > 0).toList();
-    } else if (_selectedFilter == 'Unpaid Customers') {
-      list = list.where((customer) => customer.receivables > 0).toList();
-    } else if (_selectedFilter == 'Duplicate Customers') {
-      final nameCount = <String, int>{};
-      for (final c in list) {
-        final key = c.name.trim().toLowerCase();
-        nameCount[key] = (nameCount[key] ?? 0) + 1;
-      }
-      list = list
-          .where((c) => (nameCount[c.name.trim().toLowerCase()] ?? 0) > 1)
-          .toList();
-    }
-
-    // Apply search
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isNotEmpty) {
-      list = list.where((customer) {
-        return customer.name.toLowerCase().contains(query) ||
-            (customer.email?.toLowerCase().contains(query) ?? false);
-      }).toList();
-    }
-
-    // Apply sort
-    list = [...list];
-    list.sort((a, b) {
-      int cmp;
-      switch (_sortField) {
-        case 'Receivables':
-          cmp = a.receivables.compareTo(b.receivables);
-          break;
-        case 'Unused Credits':
-          cmp = a.unusedCredits.compareTo(b.unusedCredits);
-          break;
-        case 'Name':
-        default:
-          cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      }
-      return _sortAsc ? cmp : -cmp;
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _loadCustomers();
     });
-
-    return list;
   }
+
+  bool get _isLoading => _controller.isLoading;
+
+  List<CustomerModel> get _customers => _controller.customers;
 
   void _showMoreOptions() {
     appLog('⋮ More options tapped', name: 'CustomersPage');
@@ -194,7 +122,7 @@ class _CustomersPageState extends State<CustomersPage> {
           title: 'Refresh',
           subtitle: 'Reload the latest customers',
           onTap: () {
-            setState(() {});
+            _loadCustomers();
             ToastificationHelper.showSuccess(context, 'Customers refreshed.');
           },
         ),
@@ -210,11 +138,13 @@ class _CustomersPageState extends State<CustomersPage> {
       builder: (_) => CustomerSortSheet(
         selectedField: _sortField,
         ascending: _sortAsc,
+        fields: _controller.sortFieldLabels,
         onApply: (field, ascending) {
           setState(() {
             _sortField = field;
             _sortAsc = ascending;
           });
+          _loadCustomers();
         },
       ),
     );
@@ -228,12 +158,14 @@ class _CustomersPageState extends State<CustomersPage> {
       isScrollControlled: true,
       builder: (_) => CustomerFilterSheet(
         selectedFilter: _selectedFilter,
-        filterOptions: _allFilterOptions,
+        filterOptions: _controller.filterLabels,
         onSelected: (filter) {
+          if (filter == _selectedFilter) return;
           appLog('✅ Filter selected: $filter', name: 'CustomersPage');
           setState(() {
             _selectedFilter = filter;
           });
+          _loadCustomers();
         },
       ),
     );
@@ -246,88 +178,119 @@ class _CustomersPageState extends State<CustomersPage> {
       backgroundColor: context.colors.background,
       drawer: const DrawerView(currentRoute: 'customers'),
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // App Bar
-            CustomSliverAppBar(
-              title: 'Customers',
-              subtitle: '${_filteredCustomers.length} customers',
-              leadingType: AppBarLeadingType.menu,
-              actions: [
-                AppBarIconButton(
-                  icon: _searchOpen
-                      ? Icons.close_rounded
-                      : Icons.search_rounded,
-                  color: AppColors.primary,
-                  onPressed: () {
-                    appLog('🔍 Search tapped', name: 'CustomersPage');
-                    setState(() {
-                      _searchOpen = !_searchOpen;
-                      if (!_searchOpen) _searchController.clear();
-                    });
-                  },
-                ),
-                SizedBox(width: Dimensions.width10),
-                AppBarIconButton(
-                  icon: Icons.more_vert_rounded,
-                  color: context.colors.textSecondary,
-                  onPressed: _showMoreOptions,
-                ),
-                SizedBox(width: Dimensions.width20),
-              ],
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: context.colors.card,
+          strokeWidth: 2.5,
+          onRefresh: _loadCustomers,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
+            slivers: [
+              CustomSliverAppBar(
+                title: 'Customers',
+                subtitle: '${_controller.totalCount} customers',
+                leadingType: AppBarLeadingType.menu,
+                actions: [
+                  AppBarIconButton(
+                    icon: _searchOpen
+                        ? Icons.close_rounded
+                        : Icons.search_rounded,
+                    color: AppColors.primary,
+                    onPressed: () {
+                      appLog('🔍 Search tapped', name: 'CustomersPage');
+                      setState(() {
+                        _searchOpen = !_searchOpen;
+                        if (!_searchOpen) {
+                          _searchController.clear();
+                          _loadCustomers();
+                        }
+                      });
+                    },
+                  ),
+                  SizedBox(width: Dimensions.width10),
+                  AppBarIconButton(
+                    icon: Icons.more_vert_rounded,
+                    color: context.colors.textSecondary,
+                    onPressed: _showMoreOptions,
+                  ),
+                  SizedBox(width: Dimensions.width20),
+                ],
+              ),
 
-            // Search Field
-            if (_searchOpen) SliverToBoxAdapter(child: _buildSearchField()),
+              if (_searchOpen) SliverToBoxAdapter(child: _buildSearchField()),
 
-            // Filter Segment Control
-            SliverToBoxAdapter(child: _buildFilterSegment()),
+              SliverToBoxAdapter(child: _buildFilterSegment()),
 
-            // Customers List
-            if (_isLoading)
-              const SliverToBoxAdapter(child: CustomerListSkeleton())
-            else
-              SliverPadding(
-                padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
-                sliver: _filteredCustomers.isEmpty
-                    ? const SliverToBoxAdapter(
-                        child: EmptyStateWidget(
-                          icon: Icons.people_outline_rounded,
-                          title: 'No customers found',
-                          subtitle:
-                              'Tap the + button to add your first customer.',
-                        ),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate((context, index) {
+              if (_isLoading && _customers.isEmpty)
+                const SliverToBoxAdapter(child: CustomerListSkeleton())
+              else if (_customers.isEmpty)
+                const SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverToBoxAdapter(
+                    child: EmptyStateWidget(
+                      icon: Icons.people_outline_rounded,
+                      title: 'No customers found',
+                      subtitle: 'Tap the + button to add your first customer.',
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        if (index >= _customers.length) {
                           return Padding(
-                            padding: EdgeInsets.only(
-                              bottom: Dimensions.height15,
+                            padding: EdgeInsets.symmetric(
+                              vertical: Dimensions.height20,
                             ),
-                            child: CustomerCardWidget(
-                              customer: _filteredCustomers[index],
+                            child: const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: AppColors.primary,
+                                ),
+                              ),
                             ),
                           );
-                        }, childCount: _filteredCustomers.length),
-                      ),
-              ),
+                        }
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: Dimensions.height15),
+                          child: CustomerCardWidget(
+                            customer: _customers[index],
+                          ),
+                        );
+                      },
+                      childCount:
+                          _customers.length +
+                          (_controller.isLoadingMore ? 1 : 0),
+                    ),
+                  ),
+                ),
 
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: Dimensions.height30 + Dimensions.listBottomSpace,
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: Dimensions.height30 + Dimensions.listBottomSpace,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
+        onPressed: () async {
           appLog('➕ Add Customer FAB tapped', name: 'CustomersPage');
-          Navigator.push(
+          final created = await Navigator.push<bool>(
             context,
             MaterialPageRoute(builder: (context) => const AddCustomerPage()),
           );
+          if (created == true) _loadCustomers();
         },
         backgroundColor: AppColors.primary,
         shape: RoundedRectangleBorder(
@@ -346,12 +309,11 @@ class _CustomersPageState extends State<CustomersPage> {
     return ListSearchField(
       controller: _searchController,
       hintText: 'Search by name or email',
-      onChanged: (_) => setState(() {}),
+      onChanged: _onSearchChanged,
     );
   }
 
   Widget _buildFilterSegment() {
-    // Simplify the display text by removing "Customers" suffix if present
     String displayText = _selectedFilter.replaceAll(' Customers', '');
 
     return Padding(
@@ -369,7 +331,6 @@ class _CustomersPageState extends State<CustomersPage> {
         ),
         child: Row(
           children: [
-            // Filter dropdown button
             Expanded(
               child: GestureDetector(
                 onTap: () {
@@ -419,7 +380,6 @@ class _CustomersPageState extends State<CustomersPage> {
 
             SizedBox(width: Dimensions.width10 * 0.8),
 
-            // Sort button
             GestureDetector(
               onTap: _showSortSheet,
               child: Container(

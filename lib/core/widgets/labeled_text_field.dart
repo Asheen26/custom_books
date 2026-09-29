@@ -2,7 +2,7 @@ import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:flutter/material.dart';
 
-class InvoiceTextField extends StatelessWidget {
+class LabeledTextField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final bool isRequired;
@@ -10,7 +10,11 @@ class InvoiceTextField extends StatelessWidget {
   final String? placeholder;
   final IconData? suffixIcon;
 
-  const InvoiceTextField({
+  final String? errorText;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+
+  const LabeledTextField({
     super.key,
     required this.label,
     required this.controller,
@@ -18,6 +22,9 @@ class InvoiceTextField extends StatelessWidget {
     this.hasInfo = false,
     this.placeholder,
     this.suffixIcon,
+    this.errorText,
+    this.keyboardType,
+    this.onChanged,
   });
 
   @override
@@ -61,6 +68,8 @@ class InvoiceTextField extends StatelessWidget {
         ],
         TextField(
           controller: controller,
+          keyboardType: keyboardType,
+          onChanged: onChanged,
           style: TextStyle(
             fontSize: Dimensions.font16 * 0.85,
             color: context.colors.textPrimary,
@@ -70,6 +79,11 @@ class InvoiceTextField extends StatelessWidget {
             hintStyle: TextStyle(
               color: context.colors.textTertiary,
               fontSize: Dimensions.font16 * 0.85,
+            ),
+            errorText: errorText,
+            errorStyle: TextStyle(
+              fontSize: Dimensions.font16 * 0.75,
+              color: AppColors.error,
             ),
             suffixIcon: suffixIcon != null
                 ? Icon(suffixIcon, color: context.colors.textSecondary)
@@ -91,6 +105,14 @@ class InvoiceTextField extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(Dimensions.radius15),
               borderSide: BorderSide(color: AppColors.primary, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              borderSide: BorderSide(color: AppColors.error),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              borderSide: BorderSide(color: AppColors.error, width: 2),
             ),
           ),
         ),

@@ -7,22 +7,30 @@ class CustomerSortSheet extends StatelessWidget {
   final bool ascending;
   final void Function(String field, bool ascending) onApply;
 
+  final List<String> fields;
+
   const CustomerSortSheet({
     super.key,
     required this.selectedField,
     required this.ascending,
     required this.onApply,
+    this.fields = defaultFields,
   });
 
-  static const List<String> fields = ['Name', 'Receivables', 'Unused Credits'];
+  static const List<String> defaultFields = [
+    'Name',
+    'Receivables',
+    'Unused Credits',
+  ];
 
   @override
   Widget build(BuildContext context) {
     return GenericSortSheet<String>(
       fields: fields,
       initialField: selectedField,
-      initialDirection:
-          ascending ? SortDirection.ascending : SortDirection.descending,
+      initialDirection: ascending
+          ? SortDirection.ascending
+          : SortDirection.descending,
       labelBuilder: (field) => field,
       onApply: (field, direction) =>
           onApply(field, direction == SortDirection.ascending),

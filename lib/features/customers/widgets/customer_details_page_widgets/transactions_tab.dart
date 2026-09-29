@@ -11,7 +11,6 @@ class TransactionsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Transaction type dropdown and actions
         Container(
           padding: EdgeInsets.all(Dimensions.width20),
           decoration: BoxDecoration(
@@ -87,7 +86,6 @@ class TransactionsTab extends StatelessWidget {
           ),
         ),
 
-        // Empty state
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

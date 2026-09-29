@@ -43,7 +43,6 @@ class CustomerCardWidget extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar
             Container(
               width: Dimensions.height45 * 1.1,
               height: Dimensions.height45 * 1.1,
@@ -65,12 +64,10 @@ class CustomerCardWidget extends StatelessWidget {
 
             SizedBox(width: Dimensions.width15),
 
-            // Customer details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name
                   Text(
                     customer.name,
                     style: TextStyle(
@@ -82,7 +79,6 @@ class CustomerCardWidget extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
 
-                  // Email (if available)
                   if (customer.email != null) ...[
                     SizedBox(height: Dimensions.height10 / 2),
                     Text(
@@ -98,10 +94,8 @@ class CustomerCardWidget extends StatelessWidget {
 
                   SizedBox(height: Dimensions.height15),
 
-                  // Receivables and Unused Credits
                   Row(
                     children: [
-                      // Receivables
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,7 +120,6 @@ class CustomerCardWidget extends StatelessWidget {
                         ),
                       ),
 
-                      // Unused Credits
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

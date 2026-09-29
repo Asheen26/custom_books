@@ -90,7 +90,6 @@ class _ReceivablesSectionCardState extends State<ReceivablesSectionCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Currency Header
                   Row(
                     children: [
                       Text(
@@ -126,7 +125,6 @@ class _ReceivablesSectionCardState extends State<ReceivablesSectionCard> {
                   ),
                   SizedBox(height: Dimensions.height15),
 
-                  // Receivables and Unused Credits
                   Row(
                     children: [
                       Expanded(
@@ -179,7 +177,6 @@ class _ReceivablesSectionCardState extends State<ReceivablesSectionCard> {
                   ),
                   SizedBox(height: Dimensions.height20),
 
-                  // Enter Opening Balance Link
                   GestureDetector(
                     onTap: () {
                       appLog(

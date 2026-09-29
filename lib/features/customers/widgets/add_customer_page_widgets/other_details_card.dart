@@ -14,6 +14,17 @@ class OtherDetailsCard extends StatefulWidget {
   final Function(String?) onAccountsReceivableChanged;
   final Function(String?) onAccountsPayableChanged;
 
+  final Function(String)? onTaxTreatmentChanged;
+  final Function(String)? onPlaceOfSupplyChanged;
+  final Function(String)? onPaymentTermsChanged;
+  final Function(String)? onPortalLanguageChanged;
+  final Function(bool)? onAllowPortalChanged;
+
+  final TextEditingController? openingBalanceController;
+  final TextEditingController? websiteController;
+  final TextEditingController? facebookController;
+  final TextEditingController? twitterController;
+
   const OtherDetailsCard({
     super.key,
     required this.selectedTaxTreatment,
@@ -24,6 +35,15 @@ class OtherDetailsCard extends StatefulWidget {
     required this.onCurrencyChanged,
     required this.onAccountsReceivableChanged,
     required this.onAccountsPayableChanged,
+    this.onTaxTreatmentChanged,
+    this.onPlaceOfSupplyChanged,
+    this.onPaymentTermsChanged,
+    this.onPortalLanguageChanged,
+    this.onAllowPortalChanged,
+    this.openingBalanceController,
+    this.websiteController,
+    this.facebookController,
+    this.twitterController,
   });
 
   @override
@@ -40,11 +60,19 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
   bool _allowPortalAccess = false;
   bool _showWebsiteSocial = false;
 
-  final TextEditingController _openingBalanceController =
-      TextEditingController();
-  final TextEditingController _websiteController = TextEditingController();
-  final TextEditingController _facebookController = TextEditingController();
-  final TextEditingController _twitterController = TextEditingController();
+  late final TextEditingController _openingBalanceController =
+      widget.openingBalanceController ?? TextEditingController();
+  late final TextEditingController _websiteController =
+      widget.websiteController ?? TextEditingController();
+  late final TextEditingController _facebookController =
+      widget.facebookController ?? TextEditingController();
+  late final TextEditingController _twitterController =
+      widget.twitterController ?? TextEditingController();
+
+  bool get _ownsOpeningBalance => widget.openingBalanceController == null;
+  bool get _ownsWebsite => widget.websiteController == null;
+  bool get _ownsFacebook => widget.facebookController == null;
+  bool get _ownsTwitter => widget.twitterController == null;
 
   final List<String> _taxTreatmentOptions = [
     'Select a Tax Treatment',
@@ -167,10 +195,10 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
 
   @override
   void dispose() {
-    _openingBalanceController.dispose();
-    _websiteController.dispose();
-    _facebookController.dispose();
-    _twitterController.dispose();
+    if (_ownsOpeningBalance) _openingBalanceController.dispose();
+    if (_ownsWebsite) _websiteController.dispose();
+    if (_ownsFacebook) _facebookController.dispose();
+    if (_ownsTwitter) _twitterController.dispose();
     super.dispose();
   }
 
@@ -186,6 +214,7 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
           isRequired: true,
           onChanged: (value) {
             setState(() => _selectedTaxTreatment = value!);
+            widget.onTaxTreatmentChanged?.call(value!);
           },
         ),
         SizedBox(height: Dimensions.height20),
@@ -196,6 +225,7 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
           isRequired: true,
           onChanged: (value) {
             setState(() => _selectedPlaceOfSupply = value!);
+            widget.onPlaceOfSupplyChanged?.call(value!);
           },
         ),
         SizedBox(height: Dimensions.height20),
@@ -233,6 +263,7 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
           _paymentTermsOptions,
           onChanged: (value) {
             setState(() => _selectedPaymentTerms = value!);
+            widget.onPaymentTermsChanged?.call(value!);
           },
         ),
         SizedBox(height: Dimensions.height20),
@@ -266,6 +297,7 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
                 value: _allowPortalAccess,
                 onChanged: (value) {
                   setState(() => _allowPortalAccess = value ?? false);
+                  widget.onAllowPortalChanged?.call(_allowPortalAccess);
                 },
                 activeColor: AppColors.primary,
                 shape: RoundedRectangleBorder(
@@ -295,6 +327,7 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
           hasInfo: true,
           onChanged: (value) {
             setState(() => _selectedPortalLanguage = value!);
+            widget.onPortalLanguageChanged?.call(value!);
           },
         ),
         SizedBox(height: Dimensions.height20),
@@ -572,7 +605,6 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
         expand: false,
         builder: (_, scrollController) => Column(
           children: [
-            // Header
             Container(
               padding: EdgeInsets.symmetric(
                 horizontal: Dimensions.width20,
@@ -606,7 +638,6 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
               ),
             ),
 
-            // Options
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
@@ -617,7 +648,6 @@ class _OtherDetailsCardState extends State<OtherDetailsCard> {
                   final isSelected = currentValue == option;
                   final isPlaceholder = option.startsWith('Select');
 
-                  // Skip the placeholder option in the list
                   if (isPlaceholder && index == 0) {
                     return const SizedBox.shrink();
                   }
