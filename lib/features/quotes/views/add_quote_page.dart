@@ -1,4 +1,4 @@
-import 'package:custom_books/core/apptheme/apptheme.dart';
+﻿import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
@@ -8,6 +8,7 @@ import 'package:custom_books/core/widgets/line_item_form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
+import 'package:custom_books/features/quotes/controllers/quote_form_controller.dart';
 import 'package:custom_books/features/quotes/models/quote_model.dart';
 import 'package:custom_books/features/quotes/views/add_quote_line_item_page.dart';
 import 'package:file_picker/file_picker.dart';
@@ -24,6 +25,7 @@ class AddQuotePage extends StatefulWidget {
 }
 
 class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
+  final _formController = QuoteFormController();
   final _customer = TextEditingController();
   final _reference = TextEditingController();
   final _subject = TextEditingController();
@@ -41,13 +43,8 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
   bool _taxInclusive = false;
   bool _isLoading = true;
 
-  static const _customers = [
-    'Amal',
-    'nabeel',
-    'Nandhu',
-    'Parthiv Ajith',
-    'Parthiv2 Ajith2',
-  ];
+  String? _selectedCustomerId;
+
   static const _salespeople = ['Own Store', 'Parthiv P', 'Aarav Menon'];
 
   @override
@@ -64,6 +61,7 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
 
   @override
   void dispose() {
+    _formController.dispose();
     _customer.removeListener(markDirty);
     _reference.removeListener(markDirty);
     _subject.removeListener(markDirty);
@@ -77,7 +75,6 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
     super.dispose();
   }
 
-  /// Simulates preparing the form so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 700));
@@ -100,7 +97,15 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
   }
 
   Future<void> _selectCustomer() async {
-    final selected = await showModalBottomSheet<String>(
+    const mockCustomers = [
+      {'id': 'ed63974e-1057-492a-a47d-d55cbf8ed2e7', 'name': 'Acme Traders'},
+      {'id': 'amal-id-placeholder', 'name': 'Amal'},
+      {'id': 'nabeel-id-placeholder', 'name': 'Nabeel'},
+      {'id': 'nandhu-id-placeholder', 'name': 'Nandhu'},
+      {'id': 'parthiv-id-placeholder', 'name': 'Parthiv Ajith'},
+    ];
+
+    final selected = await showModalBottomSheet<Map<String, String>>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -113,25 +118,33 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
-            ..._customers.map(
-              (name) => ListTile(
+            ...mockCustomers.map(
+              (c) => ListTile(
                 leading: CircleAvatar(
-                  child: Text(name.substring(0, 1).toUpperCase()),
+                  child: Text((c['name'] ?? '').substring(0, 1).toUpperCase()),
                 ),
-                title: Text(name),
-                onTap: () => Navigator.pop(context, name),
+                title: Text(c['name'] ?? ''),
+                onTap: () => Navigator.pop(
+                  context,
+                  {'id': c['id']!, 'name': c['name']!},
+                ),
               ),
             ),
             ListTile(
               leading: const Icon(Icons.add_rounded, color: AppColors.primary),
               title: const Text('Add New Customer'),
-              onTap: () => Navigator.pop(context, 'New Customer'),
+              onTap: () => Navigator.pop(context, null),
             ),
           ],
         ),
       ),
     );
-    if (selected != null) setState(() => _customer.text = selected);
+    if (selected != null) {
+      setState(() {
+        _customer.text = selected['name'] ?? '';
+        _selectedCustomerId = selected['id'];
+      });
+    }
   }
 
   Future<void> _addLineItem() async {
@@ -159,8 +172,10 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
     );
   }
 
-  void _save({QuoteStatus status = QuoteStatus.draft}) {
-    if (_customer.text.trim().isEmpty) {
+  Future<void> _save({QuoteStatus status = QuoteStatus.draft}) async {
+    if (_formController.isSaving) return;
+
+    if (_customer.text.trim().isEmpty || _selectedCustomerId == null) {
       ToastificationHelper.showWarning(context, 'Please select a customer.');
       return;
     }
@@ -171,32 +186,48 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
       );
       return;
     }
-    final now = DateTime.now();
-    markClean();
-    Navigator.pop(
-      context,
-      QuoteModel(
-        id: now.microsecondsSinceEpoch.toString(),
-        quoteNumber: _quoteNumber,
-        customerName: _customer.text.trim(),
-        referenceNumber: _reference.text.trim(),
-        quoteDate: _quoteDate,
-        expiryDate: _expiryDate,
-        salesperson: _salesperson ?? '',
-        projectName: _project ?? '',
-        subject: _subject.text.trim(),
-        taxInclusive: _taxInclusive,
-        lineItems: List.unmodifiable(_lineItems),
-        customerNotes: _notes.text.trim(),
-        termsAndConditions: _terms.text.trim(),
-        attachments: _attachments
-            .map((file) => file.path ?? file.name)
-            .toList(),
-        status: status,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+
+    final body = <String, dynamic>{
+      'customer_id': _selectedCustomerId,
+      'quote_date':
+          '${_quoteDate.year}-${_quoteDate.month.toString().padLeft(2, '0')}-${_quoteDate.day.toString().padLeft(2, '0')}',
+      'subject': _subject.text.trim(),
+      'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
+      'customer_notes': _notes.text.trim(),
+      'terms_and_conditions': _terms.text.trim(),
+      'action': status == QuoteStatus.sent ? 'save_and_send' : 'save_as_draft',
+      'line_items': _lineItems
+          .map((item) => {
+                'name': item.itemName,
+                'quantity': item.quantity.toString(),
+                'rate': item.rate.toStringAsFixed(2),
+                if (item.description.isNotEmpty)
+                  'description': item.description,
+              })
+          .toList(),
+      if (_reference.text.trim().isNotEmpty)
+        'reference_number': _reference.text.trim(),
+    };
+
+    setState(() {}); // Refresh UI to reflect isSaving = true.
+    final success = await _formController.create(body);
+    if (!mounted) return;
+
+    if (success) {
+      markClean();
+      final quote = _formController.savedQuote;
+      final msg = status == QuoteStatus.sent
+          ? 'Quote sent successfully.'
+          : 'Quote saved as draft.';
+      ToastificationHelper.showSuccess(context, msg);
+      Navigator.pop(context, quote);
+    } else {
+      setState(() {});
+      ToastificationHelper.showError(
+        context,
+        _formController.errorMessage ?? 'Could not save the quote.',
+      );
+    }
   }
 
   Future<void> _configureNumber() async {
@@ -251,13 +282,17 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
           onLeadingPressed: () => onPopInvokedWithResult(false, null),
           actions: [
             TextButton(
-              onPressed: _save,
+              onPressed: _formController.isSaving
+                  ? null
+                  : () => _save(),
               child: Text(
-                'SAVE AS DRAFT',
+                _formController.isSaving ? 'SAVING…' : 'SAVE AS DRAFT',
                 style: TextStyle(
                   fontSize: Dimensions.font16 * 0.75,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: _formController.isSaving
+                      ? context.colors.textTertiary
+                      : AppColors.primary,
                 ),
               ),
             ),
@@ -267,20 +302,23 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
                 color: context.colors.textSecondary,
                 size: Dimensions.iconSize24 - 4,
               ),
-              onSelected: (value) {
-                if (value == 'send') {
-                  _save(status: QuoteStatus.sent);
-                }
-                if (value == 'clear') {
-                  setState(() {
-                    _customer.clear();
-                    _reference.clear();
-                    _subject.clear();
-                    _lineItems.clear();
-                    _attachments.clear();
-                  });
-                }
-              },
+              onSelected: _formController.isSaving
+                  ? null
+                  : (value) {
+                      if (value == 'send') {
+                        _save(status: QuoteStatus.sent);
+                      }
+                      if (value == 'clear') {
+                        setState(() {
+                          _customer.clear();
+                          _selectedCustomerId = null;
+                          _reference.clear();
+                          _subject.clear();
+                          _lineItems.clear();
+                          _attachments.clear();
+                        });
+                      }
+                    },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'send', child: Text('Save and Send')),
                 PopupMenuItem(value: 'clear', child: Text('Clear Form')),

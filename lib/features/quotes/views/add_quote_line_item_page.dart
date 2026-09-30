@@ -1,4 +1,4 @@
-import 'package:custom_books/core/apptheme/apptheme.dart';
+﻿import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
@@ -81,7 +81,6 @@ class _AddQuoteLineItemPageState extends State<AddQuoteLineItemPage>
     super.dispose();
   }
 
-  /// Simulates preparing the form so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 700));
