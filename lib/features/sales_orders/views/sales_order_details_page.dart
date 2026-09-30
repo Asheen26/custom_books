@@ -1,4 +1,5 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
@@ -6,6 +7,7 @@ import 'package:custom_books/core/widgets/confirmation_dialog.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/detail_row.dart';
 import 'package:custom_books/features/sales_orders/models/sales_order_model.dart';
+import 'package:custom_books/features/sales_orders/viewmodels/sales_orders_list_viewmodel.dart';
 import 'package:custom_books/features/sales_orders/views/add_sales_order_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -28,9 +30,15 @@ class SalesOrderDetailsPage extends StatefulWidget {
 }
 
 class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
-  bool _isLoading = true;
+  final _vm = SalesOrdersListViewModel();
 
-  SalesOrderModel get order => widget.order;
+  bool _isLoading = true;
+  bool _isActionLoading = false;
+  String? _errorMessage;
+
+  late SalesOrderModel _order;
+
+  SalesOrderModel get order => _order;
   ValueChanged<SalesOrderStatus>? get onStatusChanged => widget.onStatusChanged;
   VoidCallback? get onDelete => widget.onDelete;
 
@@ -40,15 +48,97 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
   @override
   void initState() {
     super.initState();
+    _order = widget.order; // show passed-in data instantly
     _load();
   }
 
-  /// Simulates fetching details so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final resp = await _vm.fetchSalesOrderDetail(widget.order.id);
     if (!mounted) return;
-    setState(() => _isLoading = false);
+
+    final int? statusCode = resp?['_statusCode'] as int?;
+    if (resp != null &&
+        resp['success'] == true &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300) {
+      final data = resp['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        setState(() => _order = SalesOrderModel.fromJson(data));
+        appLog(
+          'Sales Order detail loaded: ${_order.salesOrderNumber}',
+          name: 'SalesOrderDetailsPage',
+        );
+      }
+    } else {
+      final msg =
+          (resp?['message'] ?? 'Failed to load sales order details.').toString();
+      setState(() => _errorMessage = msg);
+      appLog(
+        'Sales Order detail fetch failed (status: $statusCode): $msg',
+        name: 'SalesOrderDetailsPage',
+      );
+    }
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  /// Calls the appropriate status-action endpoint, updates local state from
+  /// the server response, then notifies the parent list page.
+  Future<void> _performAction(String action) async {
+    if (_isActionLoading) return;
+    setState(() => _isActionLoading = true);
+
+    final Future<Map<String, dynamic>?> call;
+    switch (action) {
+      case 'confirm':
+        call = _vm.confirmSalesOrder(_order.id);
+      case 'cancel':
+        call = _vm.cancelSalesOrder(_order.id);
+      case 'mark_invoiced':
+        call = _vm.markSalesOrderInvoiced(_order.id);
+      default:
+        setState(() => _isActionLoading = false);
+        return;
+    }
+
+    final resp = await call;
+    if (!mounted) return;
+
+    final int? statusCode = resp?['_statusCode'] as int?;
+    if (resp != null &&
+        resp['success'] == true &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300) {
+      final data = resp['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        final updated = SalesOrderModel.fromJson(data);
+        setState(() => _order = updated);
+        onStatusChanged?.call(updated.status);
+        final msg = (resp['message'] ?? 'Status updated.').toString();
+        ToastificationHelper.showSuccess(context, msg);
+        appLog(
+          'Sales Order $action success: ${updated.salesOrderNumber} -> ${updated.status}',
+          name: 'SalesOrderDetailsPage',
+        );
+      }
+    } else {
+      final msg =
+          (resp?['message'] ?? 'Action failed. Please try again.').toString();
+      ToastificationHelper.showError(context, msg);
+      appLog(
+        'Sales Order $action failed (status: $statusCode): $msg',
+        name: 'SalesOrderDetailsPage',
+      );
+    }
+
+    if (mounted) setState(() => _isActionLoading = false);
   }
 
   @override
@@ -83,6 +173,8 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
       body: SafeArea(
         child: _isLoading
             ? const DetailsPageSkeleton(showTabs: false, showLineItems: true)
+            : _errorMessage != null
+            ? _buildErrorState(context)
             : ListView(
                 physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.zero,
@@ -126,38 +218,78 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
     );
   }
 
+  Widget _buildErrorState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(Dimensions.width20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: Dimensions.iconSize24 * 2,
+              color: context.colors.textTertiary,
+            ),
+            SizedBox(height: Dimensions.height15),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: Dimensions.font16 * 0.9,
+                color: context.colors.textSecondary,
+              ),
+            ),
+            SizedBox(height: Dimensions.height20),
+            FilledButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionsMenu(BuildContext context) {
     return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_vert_rounded,
-        color: context.colors.textSecondary,
-        size: Dimensions.iconSize24 - 2,
-      ),
+      icon: _isActionLoading
+          ? SizedBox(
+              width: Dimensions.iconSize24 - 2,
+              height: Dimensions.iconSize24 - 2,
+              child: CircularProgressIndicator.adaptive(
+                strokeWidth: 2,
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(context.colors.textSecondary),
+              ),
+            )
+          : Icon(
+              Icons.more_vert_rounded,
+              color: context.colors.textSecondary,
+              size: Dimensions.iconSize24 - 2,
+            ),
+      enabled: !_isActionLoading,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(Dimensions.radius15),
       ),
       surfaceTintColor: context.colors.card,
       color: context.colors.card,
       elevation: 8,
-      onSelected: (value) {
+      onSelected: (value) async {
         switch (value) {
           case 'confirm':
-            onStatusChanged?.call(SalesOrderStatus.confirmed);
-            Navigator.pop(context);
-            break;
+            await _performAction('confirm');
+          case 'cancel':
+            await _performAction('cancel');
           case 'invoice':
-            onStatusChanged?.call(SalesOrderStatus.invoiced);
-            Navigator.pop(context);
-            break;
+            await _performAction('mark_invoiced');
           case 'print':
             ToastificationHelper.showInfo(
               context,
               'Printing sales orders is coming soon.',
             );
-            break;
           case 'delete':
             _confirmDelete(context);
-            break;
         }
       },
       itemBuilder: (context) => [
@@ -169,12 +301,21 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
             label: 'Mark as Confirmed',
             color: AppColors.success,
           ),
+        if (order.status == SalesOrderStatus.draft ||
+            order.status == SalesOrderStatus.confirmed)
+          _menuItem(
+            context,
+            value: 'cancel',
+            icon: Icons.cancel_outlined,
+            label: 'Cancel Order',
+            color: AppColors.warn,
+          ),
         if (order.status == SalesOrderStatus.confirmed)
           _menuItem(
             context,
             value: 'invoice',
             icon: Icons.receipt_long_rounded,
-            label: 'Convert to Invoice',
+            label: 'Mark as Invoiced',
             color: AppColors.primary,
           ),
         _menuItem(
