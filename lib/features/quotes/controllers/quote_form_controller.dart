@@ -27,6 +27,17 @@ class QuoteFormController extends ChangeNotifier {
     return ok;
   }
 
+  Future<bool> update(String quoteId, Map<String, dynamic> body) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final ok = await _handle(await _vm.updateQuote(quoteId, body), 'update');
+
+    _isSaving = false;
+    notifyListeners();
+    return ok;
+  }
 
   Future<bool> _handle(Map<String, dynamic>? resp, String action) async {
     final int? status = resp?['_statusCode'] as int?;

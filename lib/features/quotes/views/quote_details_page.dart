@@ -1,4 +1,4 @@
-﻿import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
@@ -63,15 +63,18 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
               color: context.colors.textSecondary,
               size: Dimensions.iconSize24 - 2,
             ),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    AddQuotePage(quoteSequence: int.tryParse(
-                      quote.quoteNumber.replaceAll(RegExp(r'[^0-9]'), ''),
-                    ) ?? 1),
-              ),
-            ),
+            onPressed: () async {
+              final updated = await Navigator.push<QuoteModel?>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddQuotePage(quote: quote),
+                ),
+              );
+              if (updated != null && context.mounted) {
+                widget.onStatusChanged?.call(updated.status);
+                Navigator.pop(context);
+              }
+            },
           ),
           _buildActionsMenu(context),
           SizedBox(width: Dimensions.width10),
@@ -461,7 +464,6 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
         ),
         SizedBox(width: Dimensions.width10),
         Text(
-          // Prefer the API-returned amount field when available.
           line.amount > 0
               ? _currency.format(line.amount)
               : _currency.format(line.quantity * line.rate),

@@ -1,4 +1,4 @@
-﻿import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
@@ -17,8 +17,9 @@ import 'package:custom_books/core/utils/date_formatter.dart';
 
 class AddQuotePage extends StatefulWidget {
   final int quoteSequence;
+  final QuoteModel? quote;
 
-  const AddQuotePage({super.key, this.quoteSequence = 2});
+  const AddQuotePage({super.key, this.quoteSequence = 2, this.quote});
 
   @override
   State<AddQuotePage> createState() => _AddQuotePageState();
@@ -45,13 +46,32 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
 
   String? _selectedCustomerId;
 
+  bool get _isEditing => widget.quote != null;
+
   static const _salespeople = ['Own Store', 'Parthiv P', 'Aarav Menon'];
 
   @override
   void initState() {
     super.initState();
     _load();
-    _quoteNumber = 'QT-${widget.quoteSequence.toString().padLeft(6, '0')}';
+    final q = widget.quote;
+    if (q != null) {
+      _quoteNumber = q.quoteNumber;
+      _quoteDate = q.quoteDate;
+      _expiryDate = q.expiryDate;
+      _taxInclusive = q.taxInclusive;
+      _salesperson = q.salesperson.isNotEmpty ? q.salesperson : null;
+      _project = q.projectName.isNotEmpty ? q.projectName : null;
+      _selectedCustomerId = q.customerId;
+      _customer.text = q.customerName;
+      _reference.text = q.referenceNumber;
+      _subject.text = q.subject;
+      _notes.text = q.customerNotes;
+      _terms.text = q.termsAndConditions;
+      _lineItems.addAll(q.lineItems);
+    } else {
+      _quoteNumber = 'QT-${widget.quoteSequence.toString().padLeft(6, '0')}';
+    }
     _customer.addListener(markDirty);
     _reference.addListener(markDirty);
     _subject.addListener(markDirty);
@@ -187,36 +207,69 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
       return;
     }
 
-    final body = <String, dynamic>{
-      'customer_id': _selectedCustomerId,
-      'quote_date':
-          '${_quoteDate.year}-${_quoteDate.month.toString().padLeft(2, '0')}-${_quoteDate.day.toString().padLeft(2, '0')}',
-      'subject': _subject.text.trim(),
-      'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
-      'customer_notes': _notes.text.trim(),
-      'terms_and_conditions': _terms.text.trim(),
-      'action': status == QuoteStatus.sent ? 'save_and_send' : 'save_as_draft',
-      'line_items': _lineItems
-          .map((item) => {
-                'name': item.itemName,
-                'quantity': item.quantity.toString(),
-                'rate': item.rate.toStringAsFixed(2),
-                if (item.description.isNotEmpty)
-                  'description': item.description,
-              })
-          .toList(),
-      if (_reference.text.trim().isNotEmpty)
-        'reference_number': _reference.text.trim(),
-    };
+    setState(() {});
 
-    setState(() {}); // Refresh UI to reflect isSaving = true.
-    final success = await _formController.create(body);
+    final bool success;
+    if (_isEditing) {
+      final updateBody = <String, dynamic>{
+        'subject': _subject.text.trim(),
+        'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
+        'customer_notes': _notes.text.trim(),
+        'terms_and_conditions': _terms.text.trim(),
+        'quote_date':
+            '${_quoteDate.year}-${_quoteDate.month.toString().padLeft(2, '0')}-${_quoteDate.day.toString().padLeft(2, '0')}',
+        if (_expiryDate != null)
+          'expiry_date':
+              '${_expiryDate!.year}-${_expiryDate!.month.toString().padLeft(2, '0')}-${_expiryDate!.day.toString().padLeft(2, '0')}',
+        if (_salesperson != null && _salesperson!.isNotEmpty)
+          'salesperson_name': _salesperson,
+        if (_reference.text.trim().isNotEmpty)
+          'reference_number': _reference.text.trim(),
+        'line_items': _lineItems
+            .map((item) => {
+                  if (item.id.isNotEmpty) 'line_id': item.id,
+                  'name': item.itemName,
+                  'quantity': item.quantity.toString(),
+                  'rate': item.rate.toStringAsFixed(2),
+                  if (item.description.isNotEmpty)
+                    'description': item.description,
+                })
+            .toList(),
+      };
+      success = await _formController.update(widget.quote!.id, updateBody);
+    } else {
+      final body = <String, dynamic>{
+        'customer_id': _selectedCustomerId,
+        'quote_date':
+            '${_quoteDate.year}-${_quoteDate.month.toString().padLeft(2, '0')}-${_quoteDate.day.toString().padLeft(2, '0')}',
+        'subject': _subject.text.trim(),
+        'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
+        'customer_notes': _notes.text.trim(),
+        'terms_and_conditions': _terms.text.trim(),
+        'action': status == QuoteStatus.sent ? 'save_and_send' : 'save_as_draft',
+        'line_items': _lineItems
+            .map((item) => {
+                  'name': item.itemName,
+                  'quantity': item.quantity.toString(),
+                  'rate': item.rate.toStringAsFixed(2),
+                  if (item.description.isNotEmpty)
+                    'description': item.description,
+                })
+            .toList(),
+        if (_reference.text.trim().isNotEmpty)
+          'reference_number': _reference.text.trim(),
+      };
+      success = await _formController.create(body);
+    }
+
     if (!mounted) return;
 
     if (success) {
       markClean();
       final quote = _formController.savedQuote;
-      final msg = status == QuoteStatus.sent
+      final msg = _isEditing
+          ? 'Quote updated successfully.'
+          : status == QuoteStatus.sent
           ? 'Quote sent successfully.'
           : 'Quote saved as draft.';
       ToastificationHelper.showSuccess(context, msg);
@@ -278,7 +331,7 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
       child: Scaffold(
         backgroundColor: context.colors.background,
         appBar: CustomBackAppBar(
-          title: 'Add Quote',
+          title: _isEditing ? 'Edit Quote' : 'Add Quote',
           onLeadingPressed: () => onPopInvokedWithResult(false, null),
           actions: [
             TextButton(

@@ -62,12 +62,11 @@ class _QuotesPageState extends State<QuotesPage> {
   QuoteSort _sort = QuoteSort.createdTime;
   SortDirection _sortDirection = SortDirection.descending;
 
-  static const _tabStatuses = <int, String?>{0: null, 1: 'draft', 2: 'sent'};
+  static const _tabFilters = <int, String?>{0: null, 1: 'draft', 2: 'sent'};
 
-  String? get _activeApiStatus {
-    if (_statusFilter != null) return _statusFilter!.name;
-    return _tabStatuses[_selectedTab];
-  }
+  String? get _activeTabFilter => _tabFilters[_selectedTab];
+
+  String? get _activeApiStatus => _statusFilter?.name;
 
   @override
   void initState() {
@@ -103,7 +102,7 @@ class _QuotesPageState extends State<QuotesPage> {
   Future<void> _loadQuotes() async {
     await _controller.loadFirstPage(
       status: _activeApiStatus,
-      filter: 'all',
+      filter: _activeTabFilter,
       search: _searchController.text.trim(),
     );
     if (!mounted) return;
@@ -125,7 +124,6 @@ class _QuotesPageState extends State<QuotesPage> {
             AddQuotePage(quoteSequence: (_controller.totalCount + 1)),
       ),
     );
-    // Reload after returning from the add page in case a new quote was saved.
     if (mounted) _loadQuotes();
   }
 
@@ -136,7 +134,6 @@ class _QuotesPageState extends State<QuotesPage> {
         builder: (_) => QuoteDetailsPage(
           quote: quote,
           onStatusChanged: (newStatus) {
-            // Reload the list to reflect the updated status.
             _loadQuotes();
           },
           onDelete: _loadQuotes,
@@ -223,8 +220,6 @@ class _QuotesPageState extends State<QuotesPage> {
           _sort = field;
           _sortDirection = direction;
         });
-        // Sort is applied client-side on the already-fetched page.
-        // If the API later supports server-side sorting, pass it here.
       },
     );
   }
@@ -360,7 +355,6 @@ class _QuotesPageState extends State<QuotesPage> {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        // Pagination load-more trigger at end of list.
                         if (index == quotes.length) {
                           return _controller.hasMore
                               ? Padding(

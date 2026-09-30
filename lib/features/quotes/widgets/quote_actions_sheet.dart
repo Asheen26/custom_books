@@ -1,4 +1,4 @@
-﻿import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/features/quotes/models/quote_model.dart';
 import 'package:flutter/material.dart';
@@ -136,7 +136,6 @@ class QuoteActionsSheet extends StatelessWidget {
                 title: 'Convert to Invoice',
                 onTap: () {
                   Navigator.pop(context);
-                  // Conversion will be handled by the caller.
                   onStatusChanged(QuoteStatus.converted);
                 },
               ),

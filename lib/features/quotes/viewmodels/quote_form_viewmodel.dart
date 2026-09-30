@@ -47,4 +47,47 @@ class QuoteFormViewModel {
       return null;
     }
   }
+
+  Future<Map<String, dynamic>?> updateQuote(
+    String quoteId,
+    Map<String, dynamic> body,
+  ) async {
+    final url = Uri.parse('$baseUrl/api/quotes/').replace(
+      queryParameters: {'quote_id': quoteId},
+    );
+
+    try {
+      final token = await AuthService.instance.getValidAccessToken();
+      appLog('➡️ Update quote request: $url', name: 'QuoteFormViewModel');
+      appLog('📤 Body: ${jsonEncode(body)}', name: 'QuoteFormViewModel');
+
+      final response = await http.patch(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      appLog(
+        '📦 Update quote response (${response.statusCode}): ${response.body}',
+        name: 'QuoteFormViewModel',
+      );
+
+      final Map<String, dynamic> resp = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      resp['_statusCode'] = response.statusCode;
+      return resp;
+    } catch (e, st) {
+      appLog(
+        '❌ Update quote request error: $e',
+        name: 'QuoteFormViewModel',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
 }
