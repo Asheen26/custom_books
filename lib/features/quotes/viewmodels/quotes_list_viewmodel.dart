@@ -8,6 +8,44 @@ import 'package:http/http.dart' as http;
 class QuotesListViewModel {
   final String baseUrl = ApiSecrets.baseUrl;
 
+  Future<Map<String, dynamic>?> fetchQuoteDetail(String quoteId) async {
+    final url = Uri.parse('$baseUrl/api/quotes/').replace(
+      queryParameters: {'quote_id': quoteId},
+    );
+
+    try {
+      final token = await AuthService.instance.getValidAccessToken();
+      appLog('➡️ Quote detail request: $url', name: 'QuotesListViewModel');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      appLog(
+        '📦 Quote detail response (${response.statusCode}): ${response.body}',
+        name: 'QuotesListViewModel',
+      );
+
+      final Map<String, dynamic> resp = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      resp['_statusCode'] = response.statusCode;
+      return resp;
+    } catch (e, st) {
+      appLog(
+        '❌ Quote detail request error: $e',
+        name: 'QuotesListViewModel',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> fetchQuotes({
     String? status,
     String? filter,

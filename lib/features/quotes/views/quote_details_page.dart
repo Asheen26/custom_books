@@ -1,4 +1,5 @@
-import 'package:custom_books/core/apptheme/apptheme.dart';
+﻿import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
@@ -6,6 +7,7 @@ import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/detail_row.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/quotes/models/quote_model.dart';
+import 'package:custom_books/features/quotes/viewmodels/quotes_list_viewmodel.dart';
 import 'package:custom_books/features/quotes/views/add_quote_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -26,10 +28,20 @@ class QuoteDetailsPage extends StatefulWidget {
   State<QuoteDetailsPage> createState() => _QuoteDetailsPageState();
 }
 
-class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
-  bool _isLoading = true;
+class _QuoteDetailsPageState extends State<QuoteDetailsPage>
+    with SingleTickerProviderStateMixin {
+  final _vm = QuotesListViewModel();
+  late TabController _tabController;
+  final TextEditingController _commentInputController = TextEditingController();
 
-  QuoteModel get quote => widget.quote;
+  bool _isLoading = true;
+  bool _isSubmittingComment = false;
+  String? _errorMessage;
+
+  final List<_LocalComment> _comments = [];
+
+  late QuoteModel _quote;
+  QuoteModel get quote => _quote;
 
   NumberFormat get _currency => NumberFormat.currency(
     symbol: '${quote.currency} ',
@@ -39,14 +51,65 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _quote = widget.quote;
     _load();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _commentInputController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final resp = await _vm.fetchQuoteDetail(widget.quote.id);
     if (!mounted) return;
-    setState(() => _isLoading = false);
+
+    final int? statusCode = resp?['_statusCode'] as int?;
+    if (resp != null &&
+        resp['success'] == true &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300) {
+      final data = resp['data'] as Map<String, dynamic>?;
+      if (data != null) {
+        setState(() => _quote = QuoteModel.fromJson(data));
+        appLog(
+          'Quote detail loaded: ${_quote.quoteNumber}',
+          name: 'QuoteDetailsPage',
+        );
+      }
+    } else {
+      final msg = (resp?['message'] ?? 'Failed to load quote details.').toString();
+      setState(() => _errorMessage = msg);
+      appLog(
+        'Quote detail fetch failed (status: $statusCode): $msg',
+        name: 'QuoteDetailsPage',
+      );
+    }
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _submitComment() async {
+    final text = _commentInputController.text.trim();
+    if (text.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _isSubmittingComment = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    setState(() {
+      _comments.insert(0, _LocalComment(text: text, createdAt: DateTime.now()));
+      _commentInputController.clear();
+      _isSubmittingComment = false;
+    });
   }
 
   @override
@@ -66,9 +129,7 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
             onPressed: () async {
               final updated = await Navigator.push<QuoteModel?>(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => AddQuotePage(quote: quote),
-                ),
+                MaterialPageRoute(builder: (_) => AddQuotePage(quote: quote)),
               );
               if (updated != null && context.mounted) {
                 widget.onStatusChanged?.call(updated.status);
@@ -82,41 +143,57 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
       ),
       body: SafeArea(
         child: _isLoading
-            ? const DetailsPageSkeleton(showTabs: false, showLineItems: true)
-            : ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.zero,
+            ? const DetailsPageSkeleton(showTabs: true, showLineItems: true)
+            : Column(
                 children: [
                   _buildHeader(context),
                   SizedBox(height: Dimensions.height15),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Dimensions.width20,
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: Dimensions.width20),
+                    decoration: BoxDecoration(
+                      color: context.colors.surfaceLight,
+                      borderRadius: BorderRadius.circular(Dimensions.radius30),
                     ),
-                    child: Column(
+                    child: TabBar(
+                      controller: _tabController,
+                      indicator: BoxDecoration(
+                        color: context.colors.card,
+                        borderRadius: BorderRadius.circular(Dimensions.radius30),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.08),
+                            blurRadius: Dimensions.radius15 * 0.53,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      labelColor: AppColors.primary,
+                      unselectedLabelColor: context.colors.textSecondary,
+                      labelStyle: TextStyle(
+                        fontSize: Dimensions.font16 * 0.72,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                      dividerColor: Colors.transparent,
+                      padding: EdgeInsets.all(Dimensions.width10 / 2),
+                      tabs: const [
+                        Tab(text: 'DETAILS'),
+                        Tab(text: 'COMMENTS & HISTORY'),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: Dimensions.height15),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
                       children: [
-                        _buildInfoCard(context),
-                        SizedBox(height: Dimensions.height15),
-                        _buildLineItemsCard(context),
-                        SizedBox(height: Dimensions.height15),
-                        _buildTotalsCard(context),
-                        if (quote.customerNotes.isNotEmpty) ...[
-                          SizedBox(height: Dimensions.height15),
-                          _buildNoteCard(
-                            context,
-                            'Customer Notes',
-                            quote.customerNotes,
-                          ),
-                        ],
-                        if (quote.termsAndConditions.isNotEmpty) ...[
-                          SizedBox(height: Dimensions.height15),
-                          _buildNoteCard(
-                            context,
-                            'Terms & Conditions',
-                            quote.termsAndConditions,
-                          ),
-                        ],
-                        SizedBox(height: Dimensions.height30),
+                        _buildDetailsTab(context),
+                        _buildCommentsTab(context),
                       ],
                     ),
                   ),
@@ -126,16 +203,278 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
     );
   }
 
+  Widget _buildDetailsTab(BuildContext context) {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
+      children: [
+        if (_errorMessage != null) ...[
+          SizedBox(height: Dimensions.height10),
+          _buildErrorBanner(context),
+          SizedBox(height: Dimensions.height10),
+        ],
+        _buildInfoCard(context),
+        SizedBox(height: Dimensions.height15),
+        _buildLineItemsCard(context),
+        SizedBox(height: Dimensions.height15),
+        _buildTotalsCard(context),
+        if (quote.customerNotes.isNotEmpty) ...[
+          SizedBox(height: Dimensions.height15),
+          _buildNoteCard(context, 'Customer Notes', quote.customerNotes),
+        ],
+        if (quote.termsAndConditions.isNotEmpty) ...[
+          SizedBox(height: Dimensions.height15),
+          _buildNoteCard(context, 'Terms & Conditions', quote.termsAndConditions),
+        ],
+        SizedBox(height: Dimensions.height30),
+      ],
+    );
+  }
+
+  Widget _buildCommentsTab(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(child: _buildCommentsList(context)),
+        _buildCommentInput(context),
+      ],
+    );
+  }
+
+  Widget _buildCommentsList(BuildContext context) {
+    if (_comments.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(Dimensions.width20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.all(Dimensions.width20),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.07),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.history_rounded,
+                  size: Dimensions.iconSize24 * 2,
+                  color: AppColors.primary,
+                ),
+              ),
+              SizedBox(height: Dimensions.height20),
+              Text(
+                'No comments or history yet',
+                style: TextStyle(
+                  fontSize: Dimensions.font16 * 0.95,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              SizedBox(height: Dimensions.height10),
+              Text(
+                'Add a comment below to start the\nactivity history',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: Dimensions.font16 * 0.8,
+                  color: context.colors.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.all(Dimensions.width20),
+      physics: const BouncingScrollPhysics(),
+      itemCount: _comments.length,
+      separatorBuilder: (_, __) => SizedBox(height: Dimensions.height10),
+      itemBuilder: (_, i) => _buildCommentTile(context, _comments[i]),
+    );
+  }
+
+  Widget _buildCommentTile(BuildContext context, _LocalComment comment) {
+    return Container(
+      padding: EdgeInsets.all(Dimensions.width15),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        borderRadius: BorderRadius.circular(Dimensions.radius15),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: Dimensions.height45 * 0.8,
+            height: Dimensions.height45 * 0.8,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: Dimensions.iconSize24 - 6,
+              color: AppColors.primary,
+            ),
+          ),
+          SizedBox(width: Dimensions.width15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  comment.text,
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.85,
+                    color: context.colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+                SizedBox(height: Dimensions.height10 / 2),
+                Text(
+                  DateFormat('dd MMM yyyy, hh:mm a').format(comment.createdAt),
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.7,
+                    color: context.colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentInput(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        Dimensions.width20,
+        Dimensions.height10,
+        Dimensions.width20,
+        Dimensions.height15,
+      ),
+      decoration: BoxDecoration(
+        color: context.colors.card,
+        border: Border(top: BorderSide(color: context.colors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: Dimensions.width15,
+                  vertical: Dimensions.height10 / 2,
+                ),
+                decoration: BoxDecoration(
+                  color: context.colors.surfaceLight,
+                  borderRadius: BorderRadius.circular(Dimensions.radius20),
+                  border: Border.all(color: context.colors.border),
+                ),
+                child: TextField(
+                  controller: _commentInputController,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _submitComment(),
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.85,
+                    color: context.colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Add a comment',
+                    hintStyle: TextStyle(color: context.colors.textTertiary),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: Dimensions.width10),
+            InkWell(
+              onTap: _isSubmittingComment ? null : _submitComment,
+              borderRadius: BorderRadius.circular(Dimensions.radius20),
+              child: Container(
+                width: Dimensions.height45,
+                height: Dimensions.height45,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: _isSubmittingComment
+                    ? Padding(
+                        padding: EdgeInsets.all(Dimensions.width10),
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: Dimensions.iconSize24 - 4,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: Dimensions.width20,
+        vertical: Dimensions.height10 + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(Dimensions.radius15),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: AppColors.error, size: Dimensions.iconSize16 + 2),
+          SizedBox(width: Dimensions.width10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(
+                fontSize: Dimensions.font16 * 0.8,
+                color: AppColors.error,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: _load,
+            child: Text(
+              'Retry',
+              style: TextStyle(
+                fontSize: Dimensions.font16 * 0.8,
+                color: AppColors.error,
+                fontWeight: FontWeight.w700,
+                decoration: TextDecoration.underline,
+                decorationColor: AppColors.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionsMenu(BuildContext context) {
     return PopupMenuButton<String>(
-      icon: Icon(
-        Icons.more_vert_rounded,
-        color: context.colors.textSecondary,
-        size: Dimensions.iconSize24 - 2,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Dimensions.radius15),
-      ),
+      icon: Icon(Icons.more_vert_rounded, color: context.colors.textSecondary, size: Dimensions.iconSize24 - 2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Dimensions.radius15)),
       surfaceTintColor: context.colors.card,
       color: context.colors.card,
       elevation: 8,
@@ -151,66 +490,24 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
             widget.onStatusChanged?.call(QuoteStatus.declined);
             Navigator.pop(context);
           case 'convert':
-            ToastificationHelper.showInfo(
-              context,
-              'Convert to invoice is coming soon.',
-            );
+            ToastificationHelper.showInfo(context, 'Convert to invoice is coming soon.');
           case 'print':
-            ToastificationHelper.showInfo(
-              context,
-              'Printing quotes is coming soon.',
-            );
+            ToastificationHelper.showInfo(context, 'Printing quotes is coming soon.');
           case 'delete':
             _confirmDelete(context);
         }
       },
       itemBuilder: (context) => [
         if (quote.status == QuoteStatus.draft)
-          _menuItem(
-            context,
-            value: 'mark_sent',
-            icon: Icons.send_outlined,
-            label: 'Mark as Sent',
-            color: AppColors.primaryLight,
-          ),
+          _menuItem(context, value: 'mark_sent', icon: Icons.send_outlined, label: 'Mark as Sent', color: AppColors.primaryLight),
         if (quote.status == QuoteStatus.sent) ...[
-          _menuItem(
-            context,
-            value: 'mark_accepted',
-            icon: Icons.check_circle_outline_rounded,
-            label: 'Mark as Accepted',
-            color: AppColors.success,
-          ),
-          _menuItem(
-            context,
-            value: 'mark_declined',
-            icon: Icons.cancel_outlined,
-            label: 'Mark as Declined',
-            color: AppColors.error,
-          ),
+          _menuItem(context, value: 'mark_accepted', icon: Icons.check_circle_outline_rounded, label: 'Mark as Accepted', color: AppColors.success),
+          _menuItem(context, value: 'mark_declined', icon: Icons.cancel_outlined, label: 'Mark as Declined', color: AppColors.error),
         ],
         if (quote.status == QuoteStatus.accepted)
-          _menuItem(
-            context,
-            value: 'convert',
-            icon: Icons.receipt_long_rounded,
-            label: 'Convert to Invoice',
-            color: AppColors.primary,
-          ),
-        _menuItem(
-          context,
-          value: 'print',
-          icon: Icons.print_rounded,
-          label: 'Print',
-          color: context.colors.textSecondary,
-        ),
-        _menuItem(
-          context,
-          value: 'delete',
-          icon: Icons.delete_outline_rounded,
-          label: 'Delete',
-          color: AppColors.error,
-        ),
+          _menuItem(context, value: 'convert', icon: Icons.receipt_long_rounded, label: 'Convert to Invoice', color: AppColors.primary),
+        _menuItem(context, value: 'print', icon: Icons.print_rounded, label: 'Print', color: context.colors.textSecondary),
+        _menuItem(context, value: 'delete', icon: Icons.delete_outline_rounded, label: 'Delete', color: AppColors.error),
       ],
     );
   }
@@ -233,9 +530,7 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
             style: TextStyle(
               fontSize: Dimensions.font16 * 0.85,
               fontWeight: FontWeight.w600,
-              color: value == 'delete'
-                  ? AppColors.error
-                  : context.colors.textPrimary,
+              color: value == 'delete' ? AppColors.error : context.colors.textPrimary,
             ),
           ),
         ],
@@ -247,8 +542,7 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
     final confirmed = await showConfirmationDialog(
       context,
       title: 'Delete Quote',
-      message:
-          'Are you sure you want to delete ${quote.quoteNumber}? This action cannot be undone.',
+      message: 'Are you sure you want to delete ${quote.quoteNumber}? This action cannot be undone.',
     );
     if (confirmed && context.mounted) {
       widget.onDelete?.call();
@@ -264,11 +558,7 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
       decoration: BoxDecoration(
         color: context.colors.card,
         boxShadow: [
-          BoxShadow(
-            color: const Color(0x08000000),
-            blurRadius: Dimensions.radius15 * 0.53,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: const Color(0x08000000), blurRadius: Dimensions.radius15 * 0.53, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -279,71 +569,39 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
             children: [
               Text(
                 'Quote Date',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.7,
-                  color: context.colors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: Dimensions.font16 * 0.7, color: context.colors.textSecondary, fontWeight: FontWeight.w500),
               ),
               Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.width10 + 2,
-                  vertical: Dimensions.height10 * 0.5,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: Dimensions.width10 + 2, vertical: Dimensions.height10 * 0.5),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(Dimensions.radius30),
                 ),
                 child: Text(
                   quote.status.label,
-                  style: TextStyle(
-                    fontSize: Dimensions.font16 * 0.62,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: statusColor,
-                  ),
+                  style: TextStyle(fontSize: Dimensions.font16 * 0.62, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: statusColor),
                 ),
               ),
             ],
           ),
           SizedBox(height: Dimensions.height10 / 2.5),
           Text(
-            quote.quoteDateLabel.isNotEmpty
-                ? quote.quoteDateLabel
-                : DateFormat('dd MMM yyyy').format(quote.quoteDate),
-            style: TextStyle(
-              fontSize: Dimensions.font20 * 0.95,
-              fontWeight: FontWeight.w800,
-              color: context.colors.textPrimary,
-            ),
+            quote.quoteDateLabel.isNotEmpty ? quote.quoteDateLabel : DateFormat('dd MMM yyyy').format(quote.quoteDate),
+            style: TextStyle(fontSize: Dimensions.font20 * 0.95, fontWeight: FontWeight.w800, color: context.colors.textPrimary),
           ),
           SizedBox(height: Dimensions.height20),
           Text(
             quote.customerName,
-            style: TextStyle(
-              fontSize: Dimensions.font20 * 0.95,
-              fontWeight: FontWeight.w800,
-              color: context.colors.textPrimary,
-            ),
+            style: TextStyle(fontSize: Dimensions.font20 * 0.95, fontWeight: FontWeight.w800, color: context.colors.textPrimary),
           ),
           SizedBox(height: Dimensions.height10 / 2.5),
           Text(
             quote.quoteNumber,
-            style: TextStyle(
-              fontSize: Dimensions.font16 * 0.85,
-              fontWeight: FontWeight.w600,
-              color: context.colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: Dimensions.font16 * 0.85, fontWeight: FontWeight.w600, color: context.colors.textSecondary),
           ),
           if (quote.subject.isNotEmpty) ...[
             SizedBox(height: Dimensions.height10 / 2.5),
-            Text(
-              quote.subject,
-              style: TextStyle(
-                fontSize: Dimensions.font16 * 0.8,
-                color: context.colors.textTertiary,
-              ),
-            ),
+            Text(quote.subject, style: TextStyle(fontSize: Dimensions.font16 * 0.8, color: context.colors.textTertiary)),
           ],
         ],
       ),
@@ -359,25 +617,17 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
           _sectionTitle(context, 'QUOTE INFORMATION'),
           SizedBox(height: Dimensions.height15),
           if (quote.referenceNumber.isNotEmpty) ...[
-            DetailRow(
-              label: 'Reference#:',
-              value: quote.referenceNumber,
-            ),
+            DetailRow(label: 'Reference#:', value: quote.referenceNumber),
             SizedBox(height: Dimensions.height15),
           ],
           if (quote.expiryDate != null) ...[
             DetailRow(
               label: 'Expiry Date:',
-              value: quote.expiryDateLabel.isNotEmpty
-                  ? quote.expiryDateLabel
-                  : DateFormat('dd MMM yyyy').format(quote.expiryDate!),
+              value: quote.expiryDateLabel.isNotEmpty ? quote.expiryDateLabel : DateFormat('dd MMM yyyy').format(quote.expiryDate!),
             ),
             SizedBox(height: Dimensions.height15),
           ],
-          DetailRow(
-            label: 'Tax Type:',
-            value: quote.taxInclusive ? 'Tax Inclusive' : 'Tax Exclusive',
-          ),
+          DetailRow(label: 'Tax Type:', value: quote.taxInclusive ? 'Tax Inclusive' : 'Tax Exclusive'),
           if (quote.salesperson.isNotEmpty) ...[
             SizedBox(height: Dimensions.height15),
             DetailRow(label: 'Salesperson:', value: quote.salesperson),
@@ -400,21 +650,12 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
           _sectionTitle(context, 'ITEMS'),
           SizedBox(height: Dimensions.height15),
           if (quote.lineItems.isEmpty)
-            Text(
-              'No items added.',
-              style: TextStyle(
-                fontSize: Dimensions.font16 * 0.85,
-                color: context.colors.textTertiary,
-              ),
-            )
+            Text('No items added.', style: TextStyle(fontSize: Dimensions.font16 * 0.85, color: context.colors.textTertiary))
           else
             ...List.generate(quote.lineItems.length, (i) {
               final line = quote.lineItems[i];
               return Padding(
-                padding: EdgeInsets.only(
-                  bottom:
-                      i == quote.lineItems.length - 1 ? 0 : Dimensions.height15,
-                ),
+                padding: EdgeInsets.only(bottom: i == quote.lineItems.length - 1 ? 0 : Dimensions.height15),
                 child: _buildLineItemRow(context, line),
               );
             }),
@@ -431,47 +672,25 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                line.itemName,
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.9,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textPrimary,
-                ),
-              ),
+              Text(line.itemName, style: TextStyle(fontSize: Dimensions.font16 * 0.9, fontWeight: FontWeight.w700, color: context.colors.textPrimary)),
               if (line.description.isNotEmpty) ...[
                 SizedBox(height: Dimensions.height10 / 3),
-                Text(
-                  line.description,
-                  style: TextStyle(
-                    fontSize: Dimensions.font16 * 0.75,
-                    color: context.colors.textSecondary,
-                  ),
-                ),
+                Text(line.description, style: TextStyle(fontSize: Dimensions.font16 * 0.75, color: context.colors.textSecondary)),
               ],
               SizedBox(height: Dimensions.height10 / 2),
               Text(
-                '${_qtyText(line.quantity)} × ${_currency.format(line.rate)}'
-                '${line.discount > 0 ? '  •  -${line.discountIsPercent ? '${_qtyText(line.discount)}%' : _currency.format(line.discount)}' : ''}'
-                '${line.taxRate > 0 ? '  •  ${_qtyText(line.taxRate)}% tax' : ''}',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.75,
-                  color: context.colors.textTertiary,
-                ),
+                '${_qtyText(line.quantity)} x ${_currency.format(line.rate)}'
+                '${line.discount > 0 ? '  -  ${line.discountIsPercent ? '${_qtyText(line.discount)}%' : _currency.format(line.discount)}' : ''}'
+                '${line.taxRate > 0 ? '  ${_qtyText(line.taxRate)}% tax' : ''}',
+                style: TextStyle(fontSize: Dimensions.font16 * 0.75, color: context.colors.textTertiary),
               ),
             ],
           ),
         ),
         SizedBox(width: Dimensions.width10),
         Text(
-          line.amount > 0
-              ? _currency.format(line.amount)
-              : _currency.format(line.quantity * line.rate),
-          style: TextStyle(
-            fontSize: Dimensions.font16 * 0.9,
-            fontWeight: FontWeight.w800,
-            color: context.colors.textPrimary,
-          ),
+          line.amount > 0 ? _currency.format(line.amount) : _currency.format(line.quantity * line.rate),
+          style: TextStyle(fontSize: Dimensions.font16 * 0.9, fontWeight: FontWeight.w800, color: context.colors.textPrimary),
         ),
       ],
     );
@@ -482,56 +701,37 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
       context,
       Column(
         children: [
-          _totalRow(
-            context,
-            'Sub Total',
-            _currency.format(quote.subTotal > 0 ? quote.subTotal : quote.totalAmount),
-          ),
+          _totalRow(context, 'Sub Total', _currency.format(quote.subTotal > 0 ? quote.subTotal : quote.totalAmount)),
           SizedBox(height: Dimensions.height10),
           _totalRow(context, 'Tax', _currency.format(quote.taxAmountComputed)),
           Padding(
             padding: EdgeInsets.symmetric(vertical: Dimensions.height10),
             child: Divider(height: 1, color: context.colors.border),
           ),
-          _totalRow(
-            context,
-            'Total',
-            _currency.format(quote.totalAmount),
-            emphasize: true,
-          ),
+          _totalRow(context, 'Total', _currency.format(quote.totalAmount), emphasize: true),
         ],
       ),
     );
   }
 
-  Widget _totalRow(
-    BuildContext context,
-    String label,
-    String value, {
-    bool emphasize = false,
-  }) {
+  Widget _totalRow(BuildContext context, String label, String value, {bool emphasize = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontSize:
-                emphasize ? Dimensions.font16 : Dimensions.font16 * 0.85,
+            fontSize: emphasize ? Dimensions.font16 : Dimensions.font16 * 0.85,
             fontWeight: emphasize ? FontWeight.w800 : FontWeight.w500,
-            color: emphasize
-                ? context.colors.textPrimary
-                : context.colors.textSecondary,
+            color: emphasize ? context.colors.textPrimary : context.colors.textSecondary,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize:
-                emphasize ? Dimensions.font20 * 0.95 : Dimensions.font16,
+            fontSize: emphasize ? Dimensions.font20 * 0.95 : Dimensions.font16,
             fontWeight: emphasize ? FontWeight.w800 : FontWeight.w700,
-            color:
-                emphasize ? AppColors.primary : context.colors.textPrimary,
+            color: emphasize ? AppColors.primary : context.colors.textPrimary,
           ),
         ),
       ],
@@ -546,14 +746,7 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
         children: [
           _sectionTitle(context, title.toUpperCase()),
           SizedBox(height: Dimensions.height10),
-          Text(
-            body,
-            style: TextStyle(
-              fontSize: Dimensions.font16 * 0.85,
-              height: 1.5,
-              color: context.colors.textSecondary,
-            ),
-          ),
+          Text(body, style: TextStyle(fontSize: Dimensions.font16 * 0.85, height: 1.5, color: context.colors.textSecondary)),
         ],
       ),
     );
@@ -567,11 +760,7 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
         color: context.colors.card,
         borderRadius: BorderRadius.circular(Dimensions.radius15),
         boxShadow: [
-          BoxShadow(
-            color: const Color(0x08000000),
-            blurRadius: Dimensions.radius15 * 0.53,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: const Color(0x08000000), blurRadius: Dimensions.radius15 * 0.53, offset: const Offset(0, 2)),
         ],
       ),
       child: child,
@@ -590,6 +779,11 @@ class _QuoteDetailsPageState extends State<QuoteDetailsPage> {
     );
   }
 
-  String _qtyText(double value) =>
-      value == value.roundToDouble() ? value.toInt().toString() : '$value';
+  String _qtyText(double value) => value == value.roundToDouble() ? value.toInt().toString() : '$value';
+}
+
+class _LocalComment {
+  final String text;
+  final DateTime createdAt;
+  _LocalComment({required this.text, required this.createdAt});
 }
