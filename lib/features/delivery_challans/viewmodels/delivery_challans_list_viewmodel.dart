@@ -47,6 +47,11 @@ class DeliveryChallansListViewModel {
     }
   }
 
+  Future<Map<String, dynamic>?> fetchOptions() async {
+    final url = Uri.parse('$baseUrl/api/delivery-challans/options/');
+    return _get(url, 'ChallanOptions');
+  }
+
   Future<Map<String, dynamic>?> fetchChallanDetail(String challanId) async {
     final url = Uri.parse(
       '$baseUrl/api/delivery-challans/',

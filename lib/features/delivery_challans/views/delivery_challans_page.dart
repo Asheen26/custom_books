@@ -1,4 +1,5 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/enums/sort_direction.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/active_filter_banner.dart';
@@ -7,17 +8,17 @@ import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/empty_state_widget.dart';
 import 'package:custom_books/core/widgets/filter_sheet.dart';
 import 'package:custom_books/core/widgets/list_control_bar.dart';
+import 'package:custom_books/core/widgets/more_options_sheet.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/delivery_challans/controllers/delivery_challans_list_controller.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_model.dart';
+import 'package:custom_books/features/delivery_challans/models/delivery_challan_options_model.dart';
 import 'package:custom_books/features/delivery_challans/views/add_delivery_challan_page.dart';
-import 'package:custom_books/features/delivery_challans/widgets/delivery_challan_card.dart';
 import 'package:custom_books/features/delivery_challans/views/delivery_challan_details_page.dart';
+import 'package:custom_books/features/delivery_challans/widgets/delivery_challan_card.dart';
 import 'package:custom_books/features/delivery_challans/widgets/delivery_challan_sort_sheet.dart';
-import 'package:custom_books/core/widgets/more_options_sheet.dart';
 import 'package:custom_books/features/drawer/views/custom_drawer.dart';
 import 'package:flutter/material.dart';
-import 'package:custom_books/core/enums/sort_direction.dart';
 
 class DeliveryChallansPage extends StatefulWidget {
   const DeliveryChallansPage({super.key});
@@ -31,26 +32,21 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
       DeliveryChallansListController();
   final TextEditingController _searchController = TextEditingController();
 
-  int _selectedTab = 0; // 0: All, 1: Draft, 2: Delivered
+  int _selectedTab = 0;
   bool _searchOpen = false;
-  DeliveryChallanStatus? _statusFilter;
+
+  DeliveryChallanOption? _statusFilter;
+
   DeliveryChallanSortField _sortField = DeliveryChallanSortField.createdTime;
   SortDirection _sortDirection = SortDirection.descending;
 
-  static const Map<DeliveryChallanSortField, String> _sortApiValues = {
-    DeliveryChallanSortField.createdTime: 'created_time',
-    DeliveryChallanSortField.date: 'date',
-    DeliveryChallanSortField.challanNumber: 'challan_number',
-    DeliveryChallanSortField.customerName: 'customer_name',
-    DeliveryChallanSortField.amount: 'total_amount',
-  };
-
-  static const List<String> _tabStatusValues = ['all', 'draft', 'delivered'];
+  static const List<String> _tabFilterKeys = ['all', 'draft', 'delivered'];
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onControllerChanged);
+    _controller.loadOptions();
     _loadChallans();
   }
 
@@ -66,17 +62,30 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _loadChallans() async {
-    final statusParam = _statusFilter != null
-        ? _statusFilter!.name
-        : _tabStatusValues[_selectedTab];
+  String get _currentFilterKey {
+    if (_statusFilter != null) return _statusFilter!.key;
+    return _tabFilterKeys[_selectedTab];
+  }
 
+  String get _currentSortByKey {
+    const enumKeys = {
+      DeliveryChallanSortField.createdTime: 'created_time',
+      DeliveryChallanSortField.date: 'date',
+      DeliveryChallanSortField.challanNumber: 'challan_number',
+      DeliveryChallanSortField.customerName: 'customer_name',
+      DeliveryChallanSortField.amount: 'total_amount',
+    };
+    final enumKey = enumKeys[_sortField] ?? 'created_time';
+    final exists = _controller.sortFieldOptions.any((o) => o.key == enumKey);
+    return exists ? enumKey : enumKey;
+  }
+
+  Future<void> _loadChallans() async {
     await _controller.load(
-      status: statusParam,
-      sortBy: _sortApiValues[_sortField],
+      status: _currentFilterKey,
+      sortBy: _currentSortByKey,
       sortOrder: _sortDirection == SortDirection.ascending ? 'asc' : 'desc',
     );
-
     if (!mounted) return;
     if (_controller.errorMessage != null) {
       ToastificationHelper.showError(context, _controller.errorMessage!);
@@ -147,16 +156,20 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
   }
 
   void _openFilterSheet() async {
-    final result = await showModalBottomSheet<DeliveryChallanStatus?>(
+    final options = _controller.filterOptions
+        .where((o) => o.key != 'all')
+        .toList();
+
+    final result = await showModalBottomSheet<DeliveryChallanOption?>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => FilterSheet<DeliveryChallanStatus>(
+      builder: (_) => FilterSheet<DeliveryChallanOption?>(
         title: 'Filter',
-        options: const [null, ...DeliveryChallanStatus.values],
+        options: [null, ...options],
         selectedValue: _statusFilter,
-        labelBuilder: (status) => status?.label ?? 'All Statuses',
-        onSelected: (status) => Navigator.pop(context, status),
+        labelBuilder: (opt) => opt?.label ?? 'All Statuses',
+        onSelected: (opt) => Navigator.pop(context, opt),
         onClose: () => Navigator.pop(context),
       ),
     );
