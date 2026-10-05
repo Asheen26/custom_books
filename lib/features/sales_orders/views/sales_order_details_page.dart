@@ -388,7 +388,7 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
 
     if (ok) {
       final msg =
-          (resp?['message'] ?? 'Sales order deleted.').toString();
+          (resp['message'] ?? 'Sales order deleted.').toString();
       appLog(
         'Sales Order deleted: ${_order.salesOrderNumber}',
         name: 'SalesOrderDetailsPage',

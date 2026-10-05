@@ -94,7 +94,7 @@ class _SalesOrderActionsSheetState extends State<SalesOrderActionsSheet> {
     setState(() => _isLoading = false);
 
     if (ok) {
-      final msg = (resp?['message'] ?? 'Sales order deleted.').toString();
+      final msg = (resp['message'] ?? 'Sales order deleted.').toString();
       appLog(
         'Sales Order deleted: ${widget.order.salesOrderNumber}',
         name: 'SalesOrderActionsSheet',
