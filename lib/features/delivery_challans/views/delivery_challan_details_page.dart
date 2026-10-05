@@ -1,13 +1,15 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
+import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
+import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/detail_row.dart';
+import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
+import 'package:custom_books/features/delivery_challans/controllers/delivery_challan_detail_controller.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_model.dart';
 import 'package:custom_books/features/delivery_challans/views/add_delivery_challan_page.dart';
 import 'package:flutter/material.dart';
-import 'package:custom_books/core/widgets/custom_back_appbar.dart';
-import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 
 class DeliveryChallanDetailsPage extends StatefulWidget {
   final DeliveryChallanModel challan;
@@ -22,32 +24,43 @@ class DeliveryChallanDetailsPage extends StatefulWidget {
 class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _isLoading = true;
+  final DeliveryChallanDetailController _controller =
+      DeliveryChallanDetailController();
+
+  DeliveryChallanModel get _challan => _controller.challan ?? widget.challan;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _controller.seed(widget.challan);
+    _controller.addListener(_onControllerChanged);
     _load();
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
-  /// Simulates fetching details so the shimmer skeleton is shown briefly.
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    await _controller.load(widget.challan.id);
     if (!mounted) return;
-    setState(() => _isLoading = false);
+    if (_controller.errorMessage != null) {
+      ToastificationHelper.showError(context, _controller.errorMessage!);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final challan = widget.challan;
+    final challan = _challan;
     final statusColor = challan.status.color;
 
     return Scaffold(
@@ -62,14 +75,16 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
               color: context.colors.textSecondary,
               size: Dimensions.iconSize24 - 2,
             ),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final updated = await Navigator.push<DeliveryChallanModel>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      AddDeliveryChallanPage(existing: widget.challan),
+                  builder: (_) => AddDeliveryChallanPage(existing: _challan),
                 ),
               );
+              if (updated != null && mounted) {
+                _load();
+              }
             },
           ),
           PopupMenuButton<String>(
@@ -85,12 +100,18 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
             color: context.colors.card,
             elevation: 8,
             onSelected: (value) async {
-              if (value == 'delete') {
+              if (value == 'print') {
+                ToastificationHelper.showInfo(
+                  context,
+                  'Printing delivery challans is coming soon.',
+                );
+              } else if (value == 'delete') {
                 final confirmed = await showConfirmationDialog(
                   context,
                   title: 'Delete Delivery Challan',
                   message:
-                      'Are you sure you want to delete this delivery challan? This action cannot be undone.',
+                      'Are you sure you want to delete this delivery challan? '
+                      'This action cannot be undone.',
                 );
                 if (confirmed && context.mounted) {
                   Navigator.pop(context);
@@ -146,11 +167,10 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
         ],
       ),
       body: SafeArea(
-        child: _isLoading
+        child: _controller.isLoading
             ? const DetailsPageSkeleton()
             : Column(
                 children: [
-                  // Header section
                   Container(
                     width: double.infinity,
                     padding: EdgeInsets.all(Dimensions.width20),
@@ -233,7 +253,6 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
                   ),
                   SizedBox(height: Dimensions.height15),
 
-                  // Tabs
                   Container(
                     margin: EdgeInsets.symmetric(
                       horizontal: Dimensions.width20,
@@ -279,11 +298,13 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
                   ),
                   SizedBox(height: Dimensions.height15),
 
-                  // Tab content
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
-                      children: [_buildDetailsTab(), _buildCommentsTab()],
+                      children: [
+                        _buildDetailsTab(challan),
+                        _buildCommentsTab(),
+                      ],
                     ),
                   ),
                 ],
@@ -292,44 +313,131 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
     );
   }
 
-  Widget _buildDetailsTab() {
-    final challan = widget.challan;
+  Widget _buildDetailsTab(DeliveryChallanModel challan) {
     return ListView(
       padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
       physics: const BouncingScrollPhysics(),
       children: [
-        Container(
-          padding: EdgeInsets.all(Dimensions.width20),
-          decoration: BoxDecoration(
-            color: context.colors.card,
-            borderRadius: BorderRadius.circular(Dimensions.radius15),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x08000000),
-                blurRadius: Dimensions.radius15 * 0.53,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DetailRow(
-                label: 'Reference#:',
-                value: challan.referenceNumber.isEmpty
-                    ? '-'
-                    : challan.referenceNumber,
-              ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(label: 'Type:', value: challan.type),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Amount:',
-                value: '₹${challan.total.toStringAsFixed(2)}',
-              ),
-            ],
-          ),
+        _card(
+          children: [
+            DetailRow(label: 'Challan#:', value: challan.challanNumber),
+            SizedBox(height: Dimensions.height15),
+            DetailRow(
+              label: 'Reference#:',
+              value: challan.referenceNumber.isEmpty
+                  ? '-'
+                  : challan.referenceNumber,
+            ),
+            SizedBox(height: Dimensions.height15),
+            DetailRow(label: 'Type:', value: challan.type),
+            SizedBox(height: Dimensions.height15),
+            DetailRow(
+              label: 'Amount:',
+              value: '₹${challan.total.toStringAsFixed(2)}',
+            ),
+          ],
         ),
+        SizedBox(height: Dimensions.height15),
+
+        if (challan.lineItems.isNotEmpty)
+          _card(
+            children: [
+              Text(
+                'Line Items',
+                style: TextStyle(
+                  fontSize: Dimensions.font16 * 0.95,
+                  fontWeight: FontWeight.w800,
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              SizedBox(height: Dimensions.height15),
+              ...challan.lineItems.map(
+                (item) => Container(
+                  margin: EdgeInsets.only(bottom: Dimensions.height10),
+                  padding: EdgeInsets.all(Dimensions.width15),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(Dimensions.radius15),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.itemName,
+                              style: TextStyle(
+                                fontSize: Dimensions.font16 * 0.88,
+                                fontWeight: FontWeight.w700,
+                                color: context.colors.textPrimary,
+                              ),
+                            ),
+                            if (item.description.isNotEmpty) ...[
+                              SizedBox(height: Dimensions.height10 / 4),
+                              Text(
+                                item.description,
+                                style: TextStyle(
+                                  fontSize: Dimensions.font16 * 0.72,
+                                  color: context.colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                            SizedBox(height: Dimensions.height10 / 2),
+                            Text(
+                              '${item.quantity.toStringAsFixed(2)} × '
+                              '₹${item.rate.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: Dimensions.font16 * 0.72,
+                                color: context.colors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '₹${item.gross.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: Dimensions.font16 * 0.88,
+                          fontWeight: FontWeight.w700,
+                          color: context.colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const Divider(),
+              Padding(
+                padding: EdgeInsets.only(top: Dimensions.height10 / 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: Dimensions.font16 * 0.9,
+                        fontWeight: FontWeight.w800,
+                        color: context.colors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '₹${challan.total.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: Dimensions.font16 * 0.95,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         SizedBox(height: Dimensions.height30),
       ],
     );
@@ -378,4 +486,23 @@ class _DeliveryChallanDetailsPageState extends State<DeliveryChallanDetailsPage>
       ),
     );
   }
+
+  Widget _card({required List<Widget> children}) => Container(
+    padding: EdgeInsets.all(Dimensions.width20),
+    decoration: BoxDecoration(
+      color: context.colors.card,
+      borderRadius: BorderRadius.circular(Dimensions.radius15),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x08000000),
+          blurRadius: 8,
+          offset: Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    ),
+  );
 }

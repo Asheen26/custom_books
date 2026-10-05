@@ -8,6 +8,7 @@ import 'package:custom_books/core/widgets/empty_state_widget.dart';
 import 'package:custom_books/core/widgets/filter_sheet.dart';
 import 'package:custom_books/core/widgets/list_control_bar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
+import 'package:custom_books/features/delivery_challans/controllers/delivery_challans_list_controller.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_model.dart';
 import 'package:custom_books/features/delivery_challans/views/add_delivery_challan_page.dart';
 import 'package:custom_books/features/delivery_challans/widgets/delivery_challan_card.dart';
@@ -26,126 +27,70 @@ class DeliveryChallansPage extends StatefulWidget {
 }
 
 class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
+  final DeliveryChallansListController _controller =
+      DeliveryChallansListController();
   final TextEditingController _searchController = TextEditingController();
 
   int _selectedTab = 0; // 0: All, 1: Draft, 2: Delivered
   bool _searchOpen = false;
-  bool _isLoading = true;
   DeliveryChallanStatus? _statusFilter;
   DeliveryChallanSortField _sortField = DeliveryChallanSortField.createdTime;
   SortDirection _sortDirection = SortDirection.descending;
 
-  late List<DeliveryChallanModel> _challans;
+  static const Map<DeliveryChallanSortField, String> _sortApiValues = {
+    DeliveryChallanSortField.createdTime: 'created_time',
+    DeliveryChallanSortField.date: 'date',
+    DeliveryChallanSortField.challanNumber: 'challan_number',
+    DeliveryChallanSortField.customerName: 'customer_name',
+    DeliveryChallanSortField.amount: 'total_amount',
+  };
+
+  static const List<String> _tabStatusValues = ['all', 'draft', 'delivered'];
 
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onControllerChanged);
     _loadChallans();
-    _challans = [
-      DeliveryChallanModel(
-        id: '1',
-        challanNumber: 'DC-00042',
-        customerName: 'Nandhu',
-        referenceNumber: 'REF-812',
-        challanDate: DateTime(2026, 7, 3),
-        type: 'Job Work',
-        status: DeliveryChallanStatus.draft,
-        total: 1240.00,
-        createdAt: DateTime(2026, 7, 3, 10, 0),
-        updatedAt: DateTime(2026, 7, 3, 10, 0),
-      ),
-      DeliveryChallanModel(
-        id: '2',
-        challanNumber: 'DC-00041',
-        customerName: 'Parthiv Ajith',
-        referenceNumber: 'REF-806',
-        challanDate: DateTime(2026, 7, 2),
-        type: 'Supply on Approval',
-        status: DeliveryChallanStatus.delivered,
-        total: 3560.50,
-        createdAt: DateTime(2026, 7, 2, 14, 30),
-        updatedAt: DateTime(2026, 7, 2, 14, 30),
-      ),
-      DeliveryChallanModel(
-        id: '3',
-        challanNumber: 'DC-00040',
-        customerName: 'Aisha Traders',
-        referenceNumber: 'REF-799',
-        challanDate: DateTime(2026, 7, 1),
-        type: 'Job Work',
-        status: DeliveryChallanStatus.returned,
-        total: 875.00,
-        createdAt: DateTime(2026, 7, 1, 9, 15),
-        updatedAt: DateTime(2026, 7, 1, 9, 15),
-      ),
-      DeliveryChallanModel(
-        id: '4',
-        challanNumber: 'DC-00039',
-        customerName: 'Gulf Retail LLC',
-        referenceNumber: 'REF-790',
-        challanDate: DateTime(2026, 6, 29),
-        type: 'Supply on Approval',
-        status: DeliveryChallanStatus.delivered,
-        total: 5210.75,
-        createdAt: DateTime(2026, 6, 29, 16, 45),
-        updatedAt: DateTime(2026, 6, 29, 16, 45),
-      ),
-    ];
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  /// Simulates fetching delivery challans so the shimmer skeleton is shown briefly.
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _loadChallans() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    final statusParam = _statusFilter != null
+        ? _statusFilter!.name
+        : _tabStatusValues[_selectedTab];
+
+    await _controller.load(
+      status: statusParam,
+      sortBy: _sortApiValues[_sortField],
+      sortOrder: _sortDirection == SortDirection.ascending ? 'asc' : 'desc',
+    );
+
     if (!mounted) return;
-    setState(() => _isLoading = false);
+    if (_controller.errorMessage != null) {
+      ToastificationHelper.showError(context, _controller.errorMessage!);
+    }
   }
 
   List<DeliveryChallanModel> get _visibleChallans {
     final query = _searchController.text.trim().toLowerCase();
-    final list = _challans.where((challan) {
-      if (_selectedTab == 1 && challan.status != DeliveryChallanStatus.draft) {
-        return false;
-      }
-      if (_selectedTab == 2 &&
-          challan.status != DeliveryChallanStatus.delivered) {
-        return false;
-      }
-      if (_statusFilter != null && challan.status != _statusFilter) {
-        return false;
-      }
-      return query.isEmpty ||
-          challan.customerName.toLowerCase().contains(query) ||
-          challan.challanNumber.toLowerCase().contains(query) ||
-          challan.referenceNumber.toLowerCase().contains(query);
+    if (query.isEmpty) return _controller.challans.toList();
+    return _controller.challans.where((c) {
+      return c.customerName.toLowerCase().contains(query) ||
+          c.challanNumber.toLowerCase().contains(query) ||
+          c.referenceNumber.toLowerCase().contains(query);
     }).toList();
-
-    list.sort((a, b) {
-      int result;
-      switch (_sortField) {
-        case DeliveryChallanSortField.createdTime:
-          result = a.createdAt.compareTo(b.createdAt);
-        case DeliveryChallanSortField.date:
-          result = a.challanDate.compareTo(b.challanDate);
-        case DeliveryChallanSortField.challanNumber:
-          result = a.challanNumber.compareTo(b.challanNumber);
-        case DeliveryChallanSortField.customerName:
-          result = a.customerName.toLowerCase().compareTo(
-            b.customerName.toLowerCase(),
-          );
-        case DeliveryChallanSortField.amount:
-          result = a.total.compareTo(b.total);
-      }
-      return _sortDirection == SortDirection.ascending ? result : -result;
-    });
-
-    return list;
   }
 
   Future<void> _addNewChallan() async {
@@ -153,13 +98,13 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
       context,
       MaterialPageRoute(builder: (_) => const AddDeliveryChallanPage()),
     );
-    if (result != null && mounted) {
-      setState(() => _challans.insert(0, result));
-      ToastificationHelper.showSuccess(
-        context,
-        '${result.challanNumber} created successfully',
-      );
-    }
+    if (result == null || !mounted) return;
+    await _loadChallans();
+    if (!mounted) return;
+    ToastificationHelper.showSuccess(
+      context,
+      '${result.challanNumber} created successfully',
+    );
   }
 
   void _showMoreOptions() {
@@ -189,7 +134,13 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
           icon: Icons.refresh_rounded,
           title: 'Refresh',
           subtitle: 'Reload the latest delivery challans',
-          onTap: () => setState(() {}),
+          onTap: () {
+            _loadChallans();
+            ToastificationHelper.showSuccess(
+              context,
+              'Delivery challans refreshed.',
+            );
+          },
         ),
       ],
     );
@@ -211,9 +162,8 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
     );
 
     if (result != null || _statusFilter != null) {
-      setState(() {
-        _statusFilter = result;
-      });
+      setState(() => _statusFilter = result);
+      _loadChallans();
     }
   }
 
@@ -230,6 +180,7 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
             _sortField = field;
             _sortDirection = direction;
           });
+          _loadChallans();
         },
       ),
     );
@@ -238,6 +189,7 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
   @override
   Widget build(BuildContext context) {
     final visibleList = _visibleChallans;
+    final totalCount = _controller.challans.length;
 
     return Scaffold(
       backgroundColor: context.colors.background,
@@ -269,7 +221,7 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
           CustomSliverAppBar(
             title: 'Delivery Challans',
             subtitle:
-                '${_challans.length} delivery challan${_challans.length == 1 ? '' : 's'}',
+                '$totalCount delivery challan${totalCount == 1 ? '' : 's'}',
             leadingType: AppBarLeadingType.menu,
             actions: [
               AppBarIconButton(
@@ -300,10 +252,13 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
             ListControlBar(
               tabs: const ['All', 'Draft', 'Delivered'],
               selectedTab: _selectedTab,
-              onTabSelected: (index) => setState(() {
-                _selectedTab = index;
-                _statusFilter = null;
-              }),
+              onTabSelected: (index) {
+                setState(() {
+                  _selectedTab = index;
+                  _statusFilter = null;
+                });
+                _loadChallans();
+              },
               filterActive: _statusFilter != null,
               onFilterTap: _openFilterSheet,
               onSortTap: _openSortSheet,
@@ -311,10 +266,13 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
             if (_statusFilter != null)
               ActiveFilterBanner(
                 label: 'Status: ${_statusFilter!.label}',
-                onClear: () => setState(() => _statusFilter = null),
+                onClear: () {
+                  setState(() => _statusFilter = null);
+                  _loadChallans();
+                },
               ),
             Expanded(
-              child: _isLoading
+              child: _controller.isLoading
                   ? const DocumentListSkeleton()
                   : visibleList.isEmpty
                   ? const EmptyStateWidget(

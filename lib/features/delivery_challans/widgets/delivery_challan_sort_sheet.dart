@@ -3,7 +3,6 @@ import 'package:custom_books/core/widgets/generic_sort_sheet.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_model.dart';
 import 'package:flutter/material.dart';
 
-/// Thin wrapper kept for call-site compatibility.
 class DeliveryChallanSortSheet extends StatelessWidget {
   final DeliveryChallanSortField selectedField;
   final SortDirection selectedDirection;

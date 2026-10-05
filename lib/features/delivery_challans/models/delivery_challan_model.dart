@@ -62,6 +62,20 @@ class DeliveryChallanLineItem {
     this.taxRate = 0,
   });
 
+  factory DeliveryChallanLineItem.fromJson(Map<String, dynamic> json) {
+    return DeliveryChallanLineItem(
+      id: (json['line_id'] ?? json['id'] ?? '').toString(),
+      itemId: (json['item_id'] ?? '').toString(),
+      itemName: (json['name'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      quantity: double.tryParse(json['quantity']?.toString() ?? '0') ?? 0,
+      rate: double.tryParse(json['rate']?.toString() ?? '0') ?? 0,
+      discount: 0,
+      discountIsPercent: true,
+      taxRate: 0,
+    );
+  }
+
   double get gross => quantity * rate;
   double get discountAmount =>
       discountIsPercent ? gross * discount / 100 : discount;
@@ -75,7 +89,7 @@ class DeliveryChallanModel {
   final String customerName;
   final String referenceNumber;
   final DateTime challanDate;
-  final String type; // e.g. 'Job Work' / 'Supply on Approval'
+  final String type;
   final DeliveryChallanStatus status;
   final List<DeliveryChallanLineItem> lineItems;
   final double total;
@@ -95,6 +109,48 @@ class DeliveryChallanModel {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  factory DeliveryChallanModel.fromJson(Map<String, dynamic> json) {
+    DeliveryChallanStatus parseStatus(String? raw) {
+      switch (raw?.toLowerCase()) {
+        case 'delivered':
+          return DeliveryChallanStatus.delivered;
+        case 'returned':
+          return DeliveryChallanStatus.returned;
+        case 'cancelled':
+          return DeliveryChallanStatus.cancelled;
+        default:
+          return DeliveryChallanStatus.draft;
+      }
+    }
+
+    final rawLines = (json['line_items'] as List<dynamic>?) ?? [];
+    final lines = rawLines
+        .whereType<Map<String, dynamic>>()
+        .map(DeliveryChallanLineItem.fromJson)
+        .toList();
+
+    return DeliveryChallanModel(
+      id: (json['delivery_challan_id'] ?? json['id'] ?? '').toString(),
+      challanNumber: (json['challan_number'] ?? '').toString(),
+      customerName: (json['customer_name'] ?? '').toString(),
+      referenceNumber: (json['reference_number'] ?? '').toString(),
+      challanDate:
+          DateTime.tryParse(json['challan_date']?.toString() ?? '') ??
+          DateTime.now(),
+      type: (json['challan_type_label'] ?? json['challan_type'] ?? 'Job Work')
+          .toString(),
+      status: parseStatus(json['status']?.toString()),
+      lineItems: lines,
+      total: double.tryParse(json['total_amount']?.toString() ?? '0') ?? 0,
+      createdAt:
+          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(json['updated_at']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
 
   DeliveryChallanModel copyWith({
     String? id,
