@@ -5,9 +5,12 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/bottom_sheet_drag_handle.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/form_widgets.dart';
+import 'package:custom_books/core/widgets/line_item_form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:custom_books/features/recurring_invoices/models/recurring_invoice_model.dart';
+import 'package:custom_books/features/recurring_invoices/views/add_recurring_invoice_line_item_page.dart';
 import 'package:flutter/material.dart';
 
 class AddRecurringInvoicePage extends StatefulWidget {
@@ -24,8 +27,8 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
     with UnsavedChangesMixin {
   final _profileNameController = TextEditingController();
   final _customerController = TextEditingController();
-  final _amountController = TextEditingController();
 
+  final List<RecurringInvoiceLineItem> _lineItems = [];
   DateTime _startDate = DateTime.now();
   RecurringFrequency _frequency = RecurringFrequency.monthly;
   bool _isLoading = true;
@@ -46,23 +49,20 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
     if (existing != null) {
       _profileNameController.text = existing.profileName;
       _customerController.text = existing.customerName;
-      _amountController.text = existing.amount.toStringAsFixed(2);
+      _lineItems.addAll(existing.lineItems);
       _startDate = existing.startDate;
       _frequency = existing.frequency;
     }
     _profileNameController.addListener(markDirty);
     _customerController.addListener(markDirty);
-    _amountController.addListener(markDirty);
   }
 
   @override
   void dispose() {
     _profileNameController.removeListener(markDirty);
     _customerController.removeListener(markDirty);
-    _amountController.removeListener(markDirty);
     _profileNameController.dispose();
     _customerController.dispose();
-    _amountController.dispose();
     super.dispose();
   }
 
@@ -198,6 +198,22 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
     }
   }
 
+  Future<void> _addLineItem() async {
+    final result = await Navigator.push<Object>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddRecurringInvoiceLineItemPage(),
+      ),
+    );
+    if (!mounted || result == null) return;
+    if (result is RecurringInvoiceLineItem) {
+      setState(() => _lineItems.add(result));
+    } else if (result is List<RecurringInvoiceLineItem> && result.isNotEmpty) {
+      setState(() => _lineItems.add(result.first));
+      await _addLineItem();
+    }
+  }
+
   void _saveProfile({
     RecurringInvoiceStatus status = RecurringInvoiceStatus.active,
   }) {
@@ -209,10 +225,15 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
       ToastificationHelper.showWarning(context, 'Please select a Customer.');
       return;
     }
-    if (_amountController.text.trim().isEmpty) {
-      ToastificationHelper.showWarning(context, 'Please enter an Amount.');
+    if (_lineItems.isEmpty) {
+      ToastificationHelper.showWarning(
+        context,
+        'Please add at least one line item.',
+      );
       return;
     }
+
+    final total = _lineItems.fold<double>(0, (s, i) => s + i.net + i.taxAmount);
 
     final newProfile = RecurringInvoiceModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -221,7 +242,8 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
       frequency: _frequency,
       startDate: _startDate,
       status: status,
-      amount: double.tryParse(_amountController.text.trim()) ?? 0,
+      lineItems: List.from(_lineItems),
+      amount: total,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -470,21 +492,64 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
                                     ),
                                   ),
                                 ),
-                                SizedBox(height: Dimensions.height20),
+                              ],
+                            ),
+                            SizedBox(height: Dimensions.height15),
 
-                                // Amount (₹) *
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const RequiredLabel(text: 'Amount (₹)'),
-                                    FormNumberField(
-                                      controller: _amountController,
-                                      hint: '0.00',
-                                      prefix: '₹',
-                                    ),
-                                  ],
+                            // Card 2: Line Items
+                            FormCard(
+                              children: [
+                                ..._lineItems.asMap().entries.map(
+                                  (entry) =>
+                                      _lineItemCard(entry.key, entry.value),
                                 ),
+                                AddLineItemButton(onPressed: _addLineItem),
+                                if (_lineItems.isNotEmpty) ...[
+                                  SizedBox(height: Dimensions.height20),
+                                  Container(
+                                    padding: EdgeInsets.all(Dimensions.width15),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                        Dimensions.radius15,
+                                      ),
+                                      border: Border.all(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        _totalRow(
+                                          'Sub Total',
+                                          _lineItems.fold<double>(
+                                            0,
+                                            (s, i) => s + i.net,
+                                          ),
+                                        ),
+                                        _totalRow(
+                                          'Tax',
+                                          _lineItems.fold<double>(
+                                            0,
+                                            (s, i) => s + i.taxAmount,
+                                          ),
+                                        ),
+                                        const FormDivider(),
+                                        _totalRow(
+                                          'Total',
+                                          _lineItems.fold<double>(
+                                            0,
+                                            (s, i) => s + i.net + i.taxAmount,
+                                          ),
+                                          bold: true,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ],
@@ -497,4 +562,80 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
       ),
     );
   }
+
+  Widget _lineItemCard(int index, RecurringInvoiceLineItem item) {
+    return Container(
+      margin: EdgeInsets.only(bottom: Dimensions.height10),
+      padding: EdgeInsets.all(Dimensions.width15),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceLight,
+        borderRadius: BorderRadius.circular(Dimensions.radius15),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Row(
+        children: [
+          ItemThumbnail(size: Dimensions.height45 * 0.8),
+          SizedBox(width: Dimensions.width10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.85,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: Dimensions.height10 / 4),
+                Text(
+                  '${item.quantity.toStringAsFixed(2)} × ₹${item.rate.toStringAsFixed(2)}  •  ₹${item.net.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.68,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              size: Dimensions.iconSize24 - 6,
+              color: context.colors.textTertiary,
+            ),
+            onPressed: () => setState(() => _lineItems.removeAt(index)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _totalRow(String label, double value, {bool bold = false}) => Padding(
+    padding: EdgeInsets.symmetric(vertical: Dimensions.height10 / 2),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Dimensions.font16 * 0.82,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+            color: bold
+                ? context.colors.textPrimary
+                : context.colors.textSecondary,
+          ),
+        ),
+        Text(
+          '₹${value.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: Dimensions.font16 * (bold ? 0.95 : 0.82),
+            fontWeight: FontWeight.w700,
+            color: bold ? AppColors.primary : context.colors.textPrimary,
+          ),
+        ),
+      ],
+    ),
+  );
 }

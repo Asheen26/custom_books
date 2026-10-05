@@ -3,9 +3,12 @@ import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/form_widgets.dart';
+import 'package:custom_books/core/widgets/line_item_form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/credit_notes/models/credit_note_model.dart';
+import 'package:custom_books/features/credit_notes/views/add_credit_note_line_item_page.dart';
+import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
 
@@ -23,8 +26,8 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
   final _customerController = TextEditingController();
   final _creditNoteNumController = TextEditingController();
   final _referenceController = TextEditingController();
-  final _amountController = TextEditingController();
 
+  final List<CreditNoteLineItem> _lineItems = [];
   DateTime _creditNoteDate = DateTime.now();
   bool _isLoading = true;
 
@@ -45,7 +48,7 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
       _creditNoteNumController.text = n.creditNoteNumber;
       _customerController.text = n.customerName;
       _referenceController.text = n.referenceNumber;
-      _amountController.text = n.total.toStringAsFixed(2);
+      _lineItems.addAll(n.lineItems);
       _creditNoteDate = n.creditNoteDate;
     } else {
       _creditNoteNumController.text = 'CN-00016';
@@ -53,7 +56,6 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
     _customerController.addListener(markDirty);
     _creditNoteNumController.addListener(markDirty);
     _referenceController.addListener(markDirty);
-    _amountController.addListener(markDirty);
   }
 
   @override
@@ -61,11 +63,9 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
     _customerController.removeListener(markDirty);
     _creditNoteNumController.removeListener(markDirty);
     _referenceController.removeListener(markDirty);
-    _amountController.removeListener(markDirty);
     _customerController.dispose();
     _creditNoteNumController.dispose();
     _referenceController.dispose();
-    _amountController.dispose();
     super.dispose();
   }
 
@@ -148,6 +148,22 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
     }
   }
 
+  Future<void> _addLineItem() async {
+    final result = await Navigator.push<Object>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddCreditNoteLineItemPage(),
+      ),
+    );
+    if (!mounted || result == null) return;
+    if (result is CreditNoteLineItem) {
+      setState(() => _lineItems.add(result));
+    } else if (result is List<CreditNoteLineItem> && result.isNotEmpty) {
+      setState(() => _lineItems.add(result.first));
+      await _addLineItem();
+    }
+  }
+
   void _saveNote({CreditNoteStatus status = CreditNoteStatus.draft}) {
     if (_customerController.text.trim().isEmpty) {
       ToastificationHelper.showWarning(context, 'Please select a Customer.');
@@ -160,10 +176,15 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
       );
       return;
     }
-    if (_amountController.text.trim().isEmpty) {
-      ToastificationHelper.showWarning(context, 'Please enter an Amount.');
+    if (_lineItems.isEmpty) {
+      ToastificationHelper.showWarning(
+        context,
+        'Please add at least one line item.',
+      );
       return;
     }
+
+    final total = _lineItems.fold<double>(0, (s, i) => s + i.net + i.taxAmount);
 
     final newNote = CreditNoteModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -172,7 +193,8 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
       referenceNumber: _referenceController.text.trim(),
       creditNoteDate: _creditNoteDate,
       status: status,
-      total: double.tryParse(_amountController.text.trim()) ?? 0,
+      lineItems: List.from(_lineItems),
+      total: total,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -370,20 +392,58 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
                             ),
                           ),
                         ),
-                        SizedBox(height: Dimensions.height20),
+                      ],
+                    ),
+                    SizedBox(height: Dimensions.height15),
 
-                        // Amount (₹) *
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const RequiredLabel(text: 'Amount (₹)'),
-                            FormNumberField(
-                              controller: _amountController,
-                              hint: '0.00',
-                              prefix: '₹',
-                            ),
-                          ],
+                    // Card 2: Line Items
+                    FormCard(
+                      children: [
+                        ..._lineItems.asMap().entries.map(
+                          (entry) => _lineItemCard(entry.key, entry.value),
                         ),
+                        AddLineItemButton(onPressed: _addLineItem),
+                        if (_lineItems.isNotEmpty) ...[
+                          SizedBox(height: Dimensions.height20),
+                          Container(
+                            padding: EdgeInsets.all(Dimensions.width15),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(
+                                Dimensions.radius15,
+                              ),
+                              border: Border.all(
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.18,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                _totalRow(
+                                  'Sub Total',
+                                  _lineItems.fold<double>(0, (s, i) => s + i.net),
+                                ),
+                                _totalRow(
+                                  'Tax',
+                                  _lineItems.fold<double>(
+                                    0,
+                                    (s, i) => s + i.taxAmount,
+                                  ),
+                                ),
+                                const FormDivider(),
+                                _totalRow(
+                                  'Total',
+                                  _lineItems.fold<double>(
+                                    0,
+                                    (s, i) => s + i.net + i.taxAmount,
+                                  ),
+                                  bold: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -392,4 +452,80 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
       ),
     );
   }
+
+  Widget _lineItemCard(int index, CreditNoteLineItem item) {
+    return Container(
+      margin: EdgeInsets.only(bottom: Dimensions.height10),
+      padding: EdgeInsets.all(Dimensions.width15),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceLight,
+        borderRadius: BorderRadius.circular(Dimensions.radius15),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Row(
+        children: [
+          ItemThumbnail(size: Dimensions.height45 * 0.8),
+          SizedBox(width: Dimensions.width10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.85,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: Dimensions.height10 / 4),
+                Text(
+                  '${item.quantity.toStringAsFixed(2)} × ₹${item.rate.toStringAsFixed(2)}  •  ₹${item.net.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.68,
+                    color: context.colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              size: Dimensions.iconSize24 - 6,
+              color: context.colors.textTertiary,
+            ),
+            onPressed: () => setState(() => _lineItems.removeAt(index)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _totalRow(String label, double value, {bool bold = false}) => Padding(
+    padding: EdgeInsets.symmetric(vertical: Dimensions.height10 / 2),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Dimensions.font16 * 0.82,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+            color: bold
+                ? context.colors.textPrimary
+                : context.colors.textSecondary,
+          ),
+        ),
+        Text(
+          '₹${value.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: Dimensions.font16 * (bold ? 0.95 : 0.82),
+            fontWeight: FontWeight.w700,
+            color: bold ? AppColors.primary : context.colors.textPrimary,
+          ),
+        ),
+      ],
+    ),
+  );
 }

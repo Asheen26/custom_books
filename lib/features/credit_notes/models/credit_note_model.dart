@@ -39,6 +39,36 @@ extension CreditNoteSortFieldLabel on CreditNoteSortField {
   };
 }
 
+class CreditNoteLineItem {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String description;
+  final double quantity;
+  final double rate;
+  final double discount;
+  final bool discountIsPercent;
+  final double taxRate;
+
+  const CreditNoteLineItem({
+    required this.id,
+    this.itemId = '',
+    required this.itemName,
+    this.description = '',
+    required this.quantity,
+    required this.rate,
+    this.discount = 0,
+    this.discountIsPercent = true,
+    this.taxRate = 0,
+  });
+
+  double get gross => quantity * rate;
+  double get discountAmount =>
+      discountIsPercent ? gross * discount / 100 : discount;
+  double get net => (gross - discountAmount).clamp(0, double.infinity);
+  double get taxAmount => net * taxRate / 100;
+}
+
 class CreditNoteModel {
   final String id;
   final String creditNoteNumber;
@@ -46,6 +76,7 @@ class CreditNoteModel {
   final String referenceNumber;
   final DateTime creditNoteDate;
   final CreditNoteStatus status;
+  final List<CreditNoteLineItem> lineItems;
   final double total;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -57,6 +88,7 @@ class CreditNoteModel {
     this.referenceNumber = '',
     required this.creditNoteDate,
     this.status = CreditNoteStatus.draft,
+    this.lineItems = const [],
     required this.total,
     required this.createdAt,
     required this.updatedAt,
@@ -69,6 +101,7 @@ class CreditNoteModel {
     String? referenceNumber,
     DateTime? creditNoteDate,
     CreditNoteStatus? status,
+    List<CreditNoteLineItem>? lineItems,
     double? total,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -80,6 +113,7 @@ class CreditNoteModel {
       referenceNumber: referenceNumber ?? this.referenceNumber,
       creditNoteDate: creditNoteDate ?? this.creditNoteDate,
       status: status ?? this.status,
+      lineItems: lineItems ?? this.lineItems,
       total: total ?? this.total,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

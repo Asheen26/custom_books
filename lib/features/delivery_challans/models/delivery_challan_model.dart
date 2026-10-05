@@ -39,6 +39,36 @@ extension DeliveryChallanSortFieldLabel on DeliveryChallanSortField {
   };
 }
 
+class DeliveryChallanLineItem {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String description;
+  final double quantity;
+  final double rate;
+  final double discount;
+  final bool discountIsPercent;
+  final double taxRate;
+
+  const DeliveryChallanLineItem({
+    required this.id,
+    this.itemId = '',
+    required this.itemName,
+    this.description = '',
+    required this.quantity,
+    required this.rate,
+    this.discount = 0,
+    this.discountIsPercent = true,
+    this.taxRate = 0,
+  });
+
+  double get gross => quantity * rate;
+  double get discountAmount =>
+      discountIsPercent ? gross * discount / 100 : discount;
+  double get net => (gross - discountAmount).clamp(0, double.infinity);
+  double get taxAmount => net * taxRate / 100;
+}
+
 class DeliveryChallanModel {
   final String id;
   final String challanNumber;
@@ -47,6 +77,7 @@ class DeliveryChallanModel {
   final DateTime challanDate;
   final String type; // e.g. 'Job Work' / 'Supply on Approval'
   final DeliveryChallanStatus status;
+  final List<DeliveryChallanLineItem> lineItems;
   final double total;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -59,6 +90,7 @@ class DeliveryChallanModel {
     required this.challanDate,
     this.type = 'Job Work',
     this.status = DeliveryChallanStatus.draft,
+    this.lineItems = const [],
     required this.total,
     required this.createdAt,
     required this.updatedAt,
@@ -72,6 +104,7 @@ class DeliveryChallanModel {
     DateTime? challanDate,
     String? type,
     DeliveryChallanStatus? status,
+    List<DeliveryChallanLineItem>? lineItems,
     double? total,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -84,6 +117,7 @@ class DeliveryChallanModel {
       challanDate: challanDate ?? this.challanDate,
       type: type ?? this.type,
       status: status ?? this.status,
+      lineItems: lineItems ?? this.lineItems,
       total: total ?? this.total,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

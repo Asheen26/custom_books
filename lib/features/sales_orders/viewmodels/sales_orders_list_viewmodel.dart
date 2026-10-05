@@ -15,8 +15,10 @@ class SalesOrdersListViewModel {
 
     try {
       final token = await AuthService.instance.getValidAccessToken();
-      appLog('➡️ Sales Orders options request: $url',
-          name: 'SalesOrdersListViewModel');
+      appLog(
+        '➡️ Sales Orders options request: $url',
+        name: 'SalesOrdersListViewModel',
+      );
 
       final response = await http.get(
         url,
@@ -50,15 +52,18 @@ class SalesOrdersListViewModel {
   // ─── Detail ───────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>?> fetchSalesOrderDetail(
-      String salesOrderId) async {
-    final url = Uri.parse('$baseUrl/api/sales-orders/').replace(
-      queryParameters: {'sales_order_id': salesOrderId},
-    );
+    String salesOrderId,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/api/sales-orders/',
+    ).replace(queryParameters: {'sales_order_id': salesOrderId});
 
     try {
       final token = await AuthService.instance.getValidAccessToken();
-      appLog('➡️ Sales Order detail request: $url',
-          name: 'SalesOrdersListViewModel');
+      appLog(
+        '➡️ Sales Order detail request: $url',
+        name: 'SalesOrdersListViewModel',
+      );
 
       final response = await http.get(
         url,
@@ -89,6 +94,99 @@ class SalesOrdersListViewModel {
     }
   }
 
+  // ─── Create ───────────────────────────────────────────────────────────────
+
+  /// POST /api/sales-orders/
+  Future<Map<String, dynamic>?> createSalesOrder(
+    Map<String, dynamic> payload,
+  ) async {
+    final url = Uri.parse('$baseUrl/api/sales-orders/');
+
+    try {
+      final token = await AuthService.instance.getValidAccessToken();
+      appLog(
+        '➡️ Sales Order create request: $url',
+        name: 'SalesOrdersListViewModel',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      );
+
+      appLog(
+        '📦 Sales Order create response (${response.statusCode}): ${response.body}',
+        name: 'SalesOrdersListViewModel',
+      );
+
+      final Map<String, dynamic> resp = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      resp['_statusCode'] = response.statusCode;
+      return resp;
+    } catch (e, st) {
+      appLog(
+        '❌ Sales Order create error: $e',
+        name: 'SalesOrdersListViewModel',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
+  // ─── Update ───────────────────────────────────────────────────────────────
+
+  /// PUT /api/sales-orders/?sales_order_id=<id>
+  Future<Map<String, dynamic>?> updateSalesOrder(
+    String salesOrderId,
+    Map<String, dynamic> payload,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/api/sales-orders/',
+    ).replace(queryParameters: {'sales_order_id': salesOrderId});
+
+    try {
+      final token = await AuthService.instance.getValidAccessToken();
+      appLog(
+        '➡️ Sales Order update request: $url',
+        name: 'SalesOrdersListViewModel',
+      );
+
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      );
+
+      appLog(
+        '📦 Sales Order update response (${response.statusCode}): ${response.body}',
+        name: 'SalesOrdersListViewModel',
+      );
+
+      final Map<String, dynamic> resp = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      resp['_statusCode'] = response.statusCode;
+      return resp;
+    } catch (e, st) {
+      appLog(
+        '❌ Sales Order update error: $e',
+        name: 'SalesOrdersListViewModel',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
   // ─── Status Actions ───────────────────────────────────────────────────────
 
   /// POST /api/sales-orders/confirm/?sales_order_id=<id>
@@ -105,14 +203,16 @@ class SalesOrdersListViewModel {
 
   /// DELETE /api/sales-orders/?sales_order_id=<id>
   Future<Map<String, dynamic>?> deleteSalesOrder(String salesOrderId) async {
-    final url = Uri.parse('$baseUrl/api/sales-orders/').replace(
-      queryParameters: {'sales_order_id': salesOrderId},
-    );
+    final url = Uri.parse(
+      '$baseUrl/api/sales-orders/',
+    ).replace(queryParameters: {'sales_order_id': salesOrderId});
 
     try {
       final token = await AuthService.instance.getValidAccessToken();
-      appLog('➡️ Sales Order delete request: $url',
-          name: 'SalesOrdersListViewModel');
+      appLog(
+        '➡️ Sales Order delete request: $url',
+        name: 'SalesOrdersListViewModel',
+      );
 
       final response = await http.delete(
         url,
@@ -144,15 +244,19 @@ class SalesOrdersListViewModel {
   }
 
   Future<Map<String, dynamic>?> _postAction(
-      String action, String salesOrderId) async {
-    final url = Uri.parse('$baseUrl/api/sales-orders/$action/').replace(
-      queryParameters: {'sales_order_id': salesOrderId},
-    );
+    String action,
+    String salesOrderId,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/api/sales-orders/$action/',
+    ).replace(queryParameters: {'sales_order_id': salesOrderId});
 
     try {
       final token = await AuthService.instance.getValidAccessToken();
-      appLog('➡️ Sales Order $action request: $url',
-          name: 'SalesOrdersListViewModel');
+      appLog(
+        '➡️ Sales Order $action request: $url',
+        name: 'SalesOrdersListViewModel',
+      );
 
       final response = await http.post(
         url,
@@ -188,11 +292,14 @@ class SalesOrdersListViewModel {
   Future<Map<String, dynamic>?> fetchSalesOrders({
     /// Tab filter key: 'all' | 'draft' | 'confirmed'
     String? filter,
+
     /// Overrides tab — specific status filter from filter sheet
     String? status,
     String? search,
+
     /// API sort field key e.g. 'created_time', 'date', 'amount'
     String? sortBy,
+
     /// 'asc' | 'desc'
     String? sortOrder,
     int? page,
@@ -212,8 +319,7 @@ class SalesOrdersListViewModel {
 
     try {
       final token = await AuthService.instance.getValidAccessToken();
-      appLog('➡️ Sales Orders request: $url',
-          name: 'SalesOrdersListViewModel');
+      appLog('➡️ Sales Orders request: $url', name: 'SalesOrdersListViewModel');
 
       final response = await http.get(
         url,

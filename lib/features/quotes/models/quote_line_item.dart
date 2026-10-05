@@ -1,6 +1,6 @@
-﻿
-class QuoteLineItem {
+﻿class QuoteLineItem {
   final String id;
+  final String itemId;
   final String itemName;
   final String description;
   final double quantity;
@@ -13,6 +13,7 @@ class QuoteLineItem {
 
   const QuoteLineItem({
     required this.id,
+    this.itemId = '',
     required this.itemName,
     this.description = '',
     required this.quantity,
@@ -33,6 +34,7 @@ class QuoteLineItem {
   factory QuoteLineItem.fromJson(Map<String, dynamic> json) {
     return QuoteLineItem(
       id: (json['line_id'] ?? json['id'] ?? '').toString(),
+      itemId: (json['item_id'] ?? '').toString(),
       itemName: (json['name'] ?? json['item_name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       quantity: _toDouble(json['quantity']),

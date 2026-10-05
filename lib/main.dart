@@ -29,12 +29,16 @@ class MyApp extends StatelessWidget {
           builder: (context, child) {
             Dimensions.init(context);
             final mediaQuery = MediaQuery.of(context);
-            final clampedScaler = mediaQuery.textScaler.clamp(
-              minScaleFactor: 1.0,
-              maxScaleFactor: 1.3,
-            );
+            // Clamp text scale: guard against min > max which crashes the
+            // Flutter date picker (_ClampedTextScaler assertion).
+            const double minScale = 1.0;
+            const double maxScale = 1.3;
+            final double currentScale = mediaQuery.textScaler.scale(1.0);
+            final double clampedScale = currentScale.clamp(minScale, maxScale);
             return MediaQuery(
-              data: mediaQuery.copyWith(textScaler: clampedScaler),
+              data: mediaQuery.copyWith(
+                textScaler: TextScaler.linear(clampedScale),
+              ),
               child: child ?? const SizedBox.shrink(),
             );
           },

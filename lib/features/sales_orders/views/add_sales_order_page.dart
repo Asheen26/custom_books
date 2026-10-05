@@ -1,4 +1,5 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
@@ -6,8 +7,11 @@ import 'package:custom_books/core/widgets/dashed_border.dart';
 import 'package:custom_books/core/widgets/form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/views/add_customer_page.dart';
+import 'package:custom_books/features/customers/viewmodels/customers_list_viewmodel.dart';
 import 'package:custom_books/features/sales_orders/models/sales_order_model.dart';
+import 'package:custom_books/features/sales_orders/viewmodels/sales_orders_list_viewmodel.dart';
 import 'package:custom_books/features/sales_orders/views/add_sales_order_line_item_page.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -32,23 +36,22 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
   final _notesController = TextEditingController();
   final _termsController = TextEditingController();
 
+  final _vm = SalesOrdersListViewModel();
+  final _customersVm = CustomersListViewModel();
+
   DateTime _salesOrderDate = DateTime.now();
   DateTime? _expectedShipmentDate;
   String _paymentTerms = 'Due on Receipt';
   String? _salesperson;
   bool _taxInclusive = false;
   bool _isLoading = true;
+  bool _isSaving = false;
+
+  /// Tracks the server-side customer_id for the selected customer.
+  String _customerId = '';
 
   final List<SalesOrderLineItem> _lineItems = [];
   final List<PlatformFile> _attachments = [];
-
-  static const List<String> _customers = [
-    'Nandhu',
-    'Parthiv Ajith',
-    'Amal',
-    'Nabeel',
-    'Tech Geum',
-  ];
 
   static const List<String> _paymentTermsOptions = [
     'Due on Receipt',
@@ -73,6 +76,7 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
     if (existing != null) {
       _salesOrderNumController.text = existing.salesOrderNumber;
       _customerController.text = existing.customerName;
+      _customerId = existing.customerId;
       _referenceController.text = existing.referenceNumber;
       _deliveryMethodController.text = existing.deliveryMethod;
       _notesController.text = existing.customerNotes;
@@ -145,7 +149,35 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
   }
 
   Future<void> _selectCustomer() async {
-    final selected = await showModalBottomSheet<String>(
+    // Fetch customers from the API
+    List<CustomerModel> customers = [];
+    bool loadError = false;
+
+    final resp = await _customersVm.fetchCustomers(pageSize: 100);
+    final int? statusCode = resp?['_statusCode'] as int?;
+    if (resp != null &&
+        resp['success'] == true &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300) {
+      final data = resp['data'] as Map<String, dynamic>?;
+      final raw = (data?['results'] as List<dynamic>?) ?? [];
+      customers = raw
+          .whereType<Map<String, dynamic>>()
+          .map(CustomerModel.fromJson)
+          .toList();
+    } else {
+      loadError = true;
+    }
+
+    if (!mounted) return;
+
+    if (loadError) {
+      ToastificationHelper.showError(context, 'Could not load customers.');
+      return;
+    }
+
+    final selected = await showModalBottomSheet<CustomerModel>(
       context: context,
       showDragHandle: true,
       backgroundColor: context.colors.card,
@@ -175,14 +207,13 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
                     onPressed: () async {
                       final nav = Navigator.of(context);
                       nav.pop();
-                      final newCust = await nav.push<String>(
+                      await nav.push<void>(
                         MaterialPageRoute(
                           builder: (_) => const AddCustomerPage(),
                         ),
                       );
-                      if (newCust != null && mounted) {
-                        setState(() => _customerController.text = newCust);
-                      }
+                      // Re-open picker after adding so user can select the new one
+                      if (mounted) _selectCustomer();
                     },
                   ),
                 ],
@@ -190,40 +221,52 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
             ),
             const Divider(height: 1),
             Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  ..._customers.map(
-                    (name) => ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.primary.withValues(
-                          alpha: 0.1,
-                        ),
-                        child: Text(
-                          name.substring(0, 1).toUpperCase(),
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
+              child: customers.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.all(Dimensions.width20),
+                      child: Text(
+                        'No customers found.',
+                        style: TextStyle(color: context.colors.textSecondary),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: customers.length,
+                      itemBuilder: (context, index) {
+                        final c = customers[index];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.primary.withValues(
+                              alpha: 0.1,
+                            ),
+                            child: Text(
+                              c.name.substring(0, 1).toUpperCase(),
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      title: Text(
-                        name,
-                        style: TextStyle(color: context.colors.textPrimary),
-                      ),
-                      onTap: () => Navigator.pop(context, name),
+                          title: Text(
+                            c.name,
+                            style: TextStyle(color: context.colors.textPrimary),
+                          ),
+                          onTap: () => Navigator.pop(context, c),
+                        );
+                      },
                     ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
       ),
     );
 
-    if (selected != null) {
-      setState(() => _customerController.text = selected);
+    if (selected != null && mounted) {
+      setState(() {
+        _customerId = selected.id;
+        _customerController.text = selected.name;
+      });
+      markDirty();
     }
   }
 
@@ -329,13 +372,16 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
   }
 
   Future<void> _addLineItem() async {
-    final result = await Navigator.push<SalesOrderLineItem>(
+    final result = await Navigator.push<Object>(
       context,
       MaterialPageRoute(builder: (_) => const AddSalesOrderLineItemPage()),
     );
-
-    if (result != null && mounted) {
+    if (!mounted || result == null) return;
+    if (result is SalesOrderLineItem) {
       setState(() => _lineItems.add(result));
+    } else if (result is List<SalesOrderLineItem> && result.isNotEmpty) {
+      setState(() => _lineItems.add(result.first));
+      await _addLineItem();
     }
   }
 
@@ -359,8 +405,12 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
     }
   }
 
-  void _saveOrder({SalesOrderStatus status = SalesOrderStatus.draft}) {
-    if (_customerController.text.trim().isEmpty) {
+  Future<void> _saveOrder({
+    SalesOrderStatus status = SalesOrderStatus.draft,
+  }) async {
+    if (_isSaving) return;
+
+    if (_customerController.text.trim().isEmpty || _customerId.isEmpty) {
       ToastificationHelper.showWarning(context, 'Please select a Customer.');
       return;
     }
@@ -372,30 +422,121 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
       return;
     }
 
-    final newOrder = SalesOrderModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      salesOrderNumber: _salesOrderNumController.text.trim(),
-      customerName: _customerController.text.trim(),
-      referenceNumber: _referenceController.text.trim(),
-      salesOrderDate: _salesOrderDate,
-      expectedShipmentDate: _expectedShipmentDate,
-      paymentTerms: _paymentTerms,
-      deliveryMethod: _deliveryMethodController.text.trim(),
-      salesperson: _salesperson ?? '',
-      taxInclusive: _taxInclusive,
-      lineItems: _lineItems,
-      customerNotes: _notesController.text.trim(),
-      termsAndConditions: _termsController.text.trim(),
-      attachments: _attachments.map((f) => f.name).toList(),
-      status: status,
-      isInvoiced: false,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+    setState(() => _isSaving = true);
 
-    markClean();
-    Navigator.pop(context, newOrder);
+    final existing = widget.existing;
+    final Map<String, dynamic>? resp;
+
+    if (existing != null) {
+      // ── Edit mode: PUT ─────────────────────────────────────────────────
+      // Include line_id for server-persisted items (UUIDs contain '-')
+      final lineItems = _lineItems.map((item) {
+        final p = <String, dynamic>{
+          'quantity': item.quantity.toString(),
+          'rate': item.rate.toStringAsFixed(2),
+          'tax': item.taxName,
+        };
+        if (item.itemId.isNotEmpty) p['item_id'] = item.itemId;
+        if (item.itemName.isNotEmpty) p['name'] = item.itemName;
+        if (item.description.isNotEmpty) p['description'] = item.description;
+        if (item.id.contains('-')) p['line_id'] = item.id;
+        return p;
+      }).toList();
+
+      final updatePayload = <String, dynamic>{
+        'customer_id': _customerId,
+        'sales_order_number': _salesOrderNumController.text.trim(),
+        'reference_number': _referenceController.text.trim(),
+        'order_date': _formatDate(_salesOrderDate),
+        if (_expectedShipmentDate != null)
+          'expected_shipment_date': _formatDate(_expectedShipmentDate!),
+        'payment_terms': _paymentTerms,
+        'delivery_method': _deliveryMethodController.text.trim(),
+        'salesperson_name': _salesperson ?? '',
+        'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
+        'customer_notes': _notesController.text.trim(),
+        'terms_and_conditions': _termsController.text.trim(),
+        'status': status == SalesOrderStatus.confirmed ? 'confirmed' : 'draft',
+        'line_items': lineItems,
+      };
+
+      appLog('Updating sales order: ${existing.id}', name: 'AddSalesOrderPage');
+      resp = await _vm.updateSalesOrder(existing.id, updatePayload);
+    } else {
+      // ── Create mode: POST ──────────────────────────────────────────────
+      // API requires item_id per line item
+      final lineItems = _lineItems.map((item) {
+        final p = <String, dynamic>{
+          'quantity': item.quantity.toString(),
+          'rate': item.rate.toStringAsFixed(2),
+        };
+        if (item.itemId.isNotEmpty) {
+          p['item_id'] = item.itemId;
+        } else {
+          // item_id not available yet (free-text entry) — send name as fallback
+          p['name'] = item.itemName;
+          if (item.description.isNotEmpty) p['description'] = item.description;
+        }
+        return p;
+      }).toList();
+
+      final createPayload = <String, dynamic>{
+        'customer_id': _customerId,
+        'action': status == SalesOrderStatus.confirmed
+            ? 'save_as_confirmed'
+            : 'save_as_draft',
+        'reference_number': _referenceController.text.trim(),
+        'order_date': _formatDate(_salesOrderDate),
+        if (_expectedShipmentDate != null)
+          'expected_shipment_date': _formatDate(_expectedShipmentDate!),
+        'payment_terms': _paymentTerms,
+        'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
+        'line_items': lineItems,
+        if (_deliveryMethodController.text.trim().isNotEmpty)
+          'delivery_method': _deliveryMethodController.text.trim(),
+        if (_salesperson != null) 'salesperson_name': _salesperson,
+        if (_notesController.text.trim().isNotEmpty)
+          'customer_notes': _notesController.text.trim(),
+        if (_termsController.text.trim().isNotEmpty)
+          'terms_and_conditions': _termsController.text.trim(),
+      };
+
+      appLog('Creating new sales order', name: 'AddSalesOrderPage');
+      resp = await _vm.createSalesOrder(createPayload);
+    }
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    final int? statusCode = resp?['_statusCode'] as int?;
+    final bool ok =
+        resp != null &&
+        resp['success'] == true &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300;
+
+    if (ok) {
+      final data = resp['data'] as Map<String, dynamic>?;
+      final savedOrder = data != null ? SalesOrderModel.fromJson(data) : null;
+      markClean();
+      Navigator.pop(context, savedOrder);
+    } else {
+      final msg = (resp?['message'] ?? 'Could not save. Please try again.')
+          .toString();
+      ToastificationHelper.showError(context, msg);
+      appLog(
+        'Sales Order save failed (status: $statusCode): $msg',
+        name: 'AddSalesOrderPage',
+      );
+    }
   }
+
+  /// Formats a [DateTime] to `yyyy-MM-dd` for the API.
+  String _formatDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -412,18 +553,32 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
           onLeadingPressed: () => onPopInvokedWithResult(false, null),
           actions: [
             TextButton(
-              onPressed: () => _saveOrder(status: SalesOrderStatus.draft),
-              child: Text(
-                'SAVE AS DRAFT',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: Dimensions.font16 * 0.75,
-                  letterSpacing: 0.5,
-                ),
-              ),
+              onPressed: _isSaving
+                  ? null
+                  : () => _saveOrder(status: SalesOrderStatus.draft),
+              child: _isSaving
+                  ? SizedBox(
+                      width: Dimensions.iconSize16,
+                      height: Dimensions.iconSize16,
+                      child: CircularProgressIndicator.adaptive(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
+                      ),
+                    )
+                  : Text(
+                      'SAVE AS DRAFT',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: Dimensions.font16 * 0.75,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
             ),
             PopupMenuButton<String>(
+              enabled: !_isSaving,
               icon: Icon(
                 Icons.more_vert_rounded,
                 color: context.colors.textPrimary,

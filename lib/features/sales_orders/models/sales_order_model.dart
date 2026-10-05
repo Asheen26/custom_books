@@ -43,16 +43,23 @@ extension SalesOrderSortFieldLabel on SalesOrderSortField {
 
 class SalesOrderLineItem {
   final String id;
+  final String itemId;
   final String itemName;
   final String description;
   final double quantity;
   final double rate;
   final double discount;
   final bool discountIsPercent;
+
+  /// Numeric tax percentage (used for local calculation).
   final double taxRate;
+
+  /// Tax name/key sent to the API (e.g. "VAT [5%]", "Exempt").
+  final String taxName;
 
   const SalesOrderLineItem({
     required this.id,
+    this.itemId = '',
     required this.itemName,
     this.description = '',
     required this.quantity,
@@ -60,6 +67,7 @@ class SalesOrderLineItem {
     this.discount = 0,
     this.discountIsPercent = true,
     this.taxRate = 0,
+    this.taxName = '',
   });
 
   double get gross => quantity * rate;
@@ -72,6 +80,7 @@ class SalesOrderLineItem {
   factory SalesOrderLineItem.fromJson(Map<String, dynamic> json) {
     return SalesOrderLineItem(
       id: (json['line_id'] ?? json['id'] ?? '').toString(),
+      itemId: (json['item_id'] ?? '').toString(),
       itemName: (json['name'] ?? json['item_name'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       quantity: _toDouble(json['quantity']),
@@ -79,6 +88,7 @@ class SalesOrderLineItem {
       discount: _toDouble(json['discount']),
       discountIsPercent: json['discount_type'] != 'entity_level',
       taxRate: _toDouble(json['tax_percentage']),
+      taxName: (json['tax'] ?? '').toString(),
     );
   }
 
@@ -154,10 +164,9 @@ class SalesOrderModel {
 
   /// Uses server-returned [totalAmount] when available (non-zero), otherwise
   /// falls back to the locally computed value.
-  double get total =>
-      totalAmount > 0
-          ? totalAmount
-          : (taxInclusive ? subTotal : subTotal + taxAmount);
+  double get total => totalAmount > 0
+      ? totalAmount
+      : (taxInclusive ? subTotal : subTotal + taxAmount);
 
   SalesOrderModel copyWith({
     String? id,
@@ -241,8 +250,8 @@ class SalesOrderModel {
       expectedShipmentDate: json['expected_shipment_date'] != null
           ? DateTime.tryParse(json['expected_shipment_date'].toString())
           : null,
-      expectedShipmentDateLabel:
-          (json['expected_shipment_date_label'] ?? '').toString(),
+      expectedShipmentDateLabel: (json['expected_shipment_date_label'] ?? '')
+          .toString(),
       paymentTerms: (json['payment_terms'] ?? '').toString(),
       deliveryMethod: (json['delivery_method'] ?? '').toString(),
       salesperson: (json['salesperson_name'] ?? '').toString(),

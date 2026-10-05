@@ -48,6 +48,36 @@ extension RecurringInvoiceSortFieldLabel on RecurringInvoiceSortField {
   };
 }
 
+class RecurringInvoiceLineItem {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String description;
+  final double quantity;
+  final double rate;
+  final double discount;
+  final bool discountIsPercent;
+  final double taxRate;
+
+  const RecurringInvoiceLineItem({
+    required this.id,
+    this.itemId = '',
+    required this.itemName,
+    this.description = '',
+    required this.quantity,
+    required this.rate,
+    this.discount = 0,
+    this.discountIsPercent = true,
+    this.taxRate = 0,
+  });
+
+  double get gross => quantity * rate;
+  double get discountAmount =>
+      discountIsPercent ? gross * discount / 100 : discount;
+  double get net => (gross - discountAmount).clamp(0, double.infinity);
+  double get taxAmount => net * taxRate / 100;
+}
+
 class RecurringInvoiceModel {
   final String id;
   final String profileName;
@@ -55,6 +85,7 @@ class RecurringInvoiceModel {
   final RecurringFrequency frequency;
   final DateTime startDate;
   final RecurringInvoiceStatus status;
+  final List<RecurringInvoiceLineItem> lineItems;
   final double amount;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -66,6 +97,7 @@ class RecurringInvoiceModel {
     this.frequency = RecurringFrequency.monthly,
     required this.startDate,
     this.status = RecurringInvoiceStatus.active,
+    this.lineItems = const [],
     required this.amount,
     required this.createdAt,
     required this.updatedAt,
@@ -78,6 +110,7 @@ class RecurringInvoiceModel {
     RecurringFrequency? frequency,
     DateTime? startDate,
     RecurringInvoiceStatus? status,
+    List<RecurringInvoiceLineItem>? lineItems,
     double? amount,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -89,6 +122,7 @@ class RecurringInvoiceModel {
       frequency: frequency ?? this.frequency,
       startDate: startDate ?? this.startDate,
       status: status ?? this.status,
+      lineItems: lineItems ?? this.lineItems,
       amount: amount ?? this.amount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

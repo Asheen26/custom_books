@@ -76,8 +76,8 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
         );
       }
     } else {
-      final msg =
-          (resp?['message'] ?? 'Failed to load sales order details.').toString();
+      final msg = (resp?['message'] ?? 'Failed to load sales order details.')
+          .toString();
       setState(() => _errorMessage = msg);
       appLog(
         'Sales Order detail fetch failed (status: $statusCode): $msg',
@@ -129,8 +129,8 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
         );
       }
     } else {
-      final msg =
-          (resp?['message'] ?? 'Action failed. Please try again.').toString();
+      final msg = (resp?['message'] ?? 'Action failed. Please try again.')
+          .toString();
       ToastificationHelper.showError(context, msg);
       appLog(
         'Sales Order $action failed (status: $statusCode): $msg',
@@ -157,13 +157,17 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
               color: context.colors.textSecondary,
               size: Dimensions.iconSize24 - 2,
             ),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final updated = await Navigator.push<SalesOrderModel>(
                 context,
                 MaterialPageRoute(
                   builder: (_) => AddSalesOrderPage(existing: order),
                 ),
               );
+              if (updated != null && mounted) {
+                setState(() => _order = updated);
+                onStatusChanged?.call(updated.status);
+              }
             },
           ),
           _buildActionsMenu(context),
@@ -259,8 +263,9 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
               height: Dimensions.iconSize24 - 2,
               child: CircularProgressIndicator.adaptive(
                 strokeWidth: 2,
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(context.colors.textSecondary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  context.colors.textSecondary,
+                ),
               ),
             )
           : Icon(
@@ -381,14 +386,14 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
     setState(() => _isActionLoading = false);
 
     final int? statusCode = resp?['_statusCode'] as int?;
-    final bool ok = resp != null &&
+    final bool ok =
+        resp != null &&
         statusCode != null &&
         statusCode >= 200 &&
         statusCode < 300;
 
     if (ok) {
-      final msg =
-          (resp['message'] ?? 'Sales order deleted.').toString();
+      final msg = (resp['message'] ?? 'Sales order deleted.').toString();
       appLog(
         'Sales Order deleted: ${_order.salesOrderNumber}',
         name: 'SalesOrderDetailsPage',
@@ -398,8 +403,8 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
       // Toast shown after pop so it appears on the list page
       ToastificationHelper.showSuccess(context, msg);
     } else {
-      final msg =
-          (resp?['message'] ?? 'Could not delete. Please try again.').toString();
+      final msg = (resp?['message'] ?? 'Could not delete. Please try again.')
+          .toString();
       ToastificationHelper.showError(context, msg);
       appLog(
         'Sales Order delete failed (status: $statusCode): $msg',

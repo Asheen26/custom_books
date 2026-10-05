@@ -19,10 +19,6 @@ class InvoiceTaxAndLineItemSection extends StatelessWidget {
     required this.onLineItemAdded,
   });
 
-  void _handleTaxTypeChanged(bool value) {
-    setStateAndLog(value);
-  }
-
   void setStateAndLog(bool value) {
     appLog(
       '💰 Tax type changed to: ${value ? "Inclusive" : "Exclusive"}',
@@ -33,18 +29,26 @@ class InvoiceTaxAndLineItemSection extends StatelessWidget {
 
   Future<void> _handleAddLineItem(BuildContext context) async {
     appLog('➕ Add Line Item tapped', name: 'NewInvoicePage');
-    final result = await Navigator.push(
+    final result = await Navigator.push<Object>(
       context,
       MaterialPageRoute(builder: (context) => const AddInvoiceLineItemPage()),
     );
-    if (result != null && result is InvoiceLineItem) {
+    if (!context.mounted || result == null) return;
+    if (result is InvoiceLineItem) {
       appLog('✅ Line item added: ${result.itemName}', name: 'NewInvoicePage');
-      if (!context.mounted) return;
       ToastificationHelper.showSuccess(
         context,
         '${result.itemName} added to invoice.',
       );
       onLineItemAdded(result);
+      // Recurse to open the next item immediately (Save and New)
+    } else if (result is List<InvoiceLineItem> && result.isNotEmpty) {
+      appLog(
+        '✅ Line item added (save & new): ${result.first.itemName}',
+        name: 'NewInvoicePage',
+      );
+      onLineItemAdded(result.first);
+      await _handleAddLineItem(context);
     }
   }
 
@@ -75,7 +79,7 @@ class InvoiceTaxAndLineItemSection extends StatelessWidget {
                           context,
                           'Exclusive',
                           !isTaxInclusive,
-                          () => _handleTaxTypeChanged(false),
+                          () => setStateAndLog(false),
                         ),
                       ),
                       SizedBox(width: Dimensions.width15),
@@ -84,7 +88,7 @@ class InvoiceTaxAndLineItemSection extends StatelessWidget {
                           context,
                           'Inclusive',
                           isTaxInclusive,
-                          () => _handleTaxTypeChanged(true),
+                          () => setStateAndLog(true),
                         ),
                       ),
                     ],

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/app_logger.dart';
@@ -11,17 +11,19 @@ import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/inventory_adjustments/controllers/item_lookup_controller.dart';
 import 'package:custom_books/features/inventory_adjustments/models/line_item_model.dart';
-import 'package:custom_books/features/quotes/models/quote_model.dart';
+import 'package:custom_books/features/recurring_invoices/models/recurring_invoice_model.dart';
 import 'package:flutter/material.dart';
 
-class AddQuoteLineItemPage extends StatefulWidget {
-  const AddQuoteLineItemPage({super.key});
+class AddRecurringInvoiceLineItemPage extends StatefulWidget {
+  const AddRecurringInvoiceLineItemPage({super.key});
 
   @override
-  State<AddQuoteLineItemPage> createState() => _AddQuoteLineItemPageState();
+  State<AddRecurringInvoiceLineItemPage> createState() =>
+      _AddRecurringInvoiceLineItemPageState();
 }
 
-class _AddQuoteLineItemPageState extends State<AddQuoteLineItemPage>
+class _AddRecurringInvoiceLineItemPageState
+    extends State<AddRecurringInvoiceLineItemPage>
     with UnsavedChangesMixin {
   final _item = TextEditingController();
   final _description = TextEditingController();
@@ -109,7 +111,10 @@ class _AddQuoteLineItemPageState extends State<AddQuoteLineItemPage>
   }
 
   void _selectItem(InventoryItemLookup apiItem) {
-    appLog('📦 Quote item selected: ${apiItem.name}', name: 'AddQuoteLineItem');
+    appLog(
+      '📦 Recurring Invoice item selected: ${apiItem.name}',
+      name: 'AddRecurringInvoiceLineItem',
+    );
     setState(() {
       _selectedItem = apiItem;
       _item.text = apiItem.name;
@@ -132,7 +137,7 @@ class _AddQuoteLineItemPageState extends State<AddQuoteLineItemPage>
     markDirty();
   }
 
-  QuoteLineItem? _buildItem() {
+  RecurringInvoiceLineItem? _buildItem() {
     final name = _item.text.trim();
     final quantity = double.tryParse(_quantity.text) ?? 0;
     final rate = double.tryParse(_rate.text) ?? -1;
@@ -143,7 +148,7 @@ class _AddQuoteLineItemPageState extends State<AddQuoteLineItemPage>
       );
       return null;
     }
-    return QuoteLineItem(
+    return RecurringInvoiceLineItem(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       itemId: _selectedItem!.id,
       itemName: name,
@@ -168,9 +173,14 @@ class _AddQuoteLineItemPageState extends State<AddQuoteLineItemPage>
     final item = _buildItem();
     if (item == null) return;
     markClean();
-    Navigator.pop(context, <QuoteLineItem>[
+    Navigator.pop(context, <RecurringInvoiceLineItem>[
       item,
-      const QuoteLineItem(id: '', itemName: '', quantity: 0, rate: 0),
+      const RecurringInvoiceLineItem(
+        id: '',
+        itemName: '',
+        quantity: 0,
+        rate: 0,
+      ),
     ]);
   }
 
