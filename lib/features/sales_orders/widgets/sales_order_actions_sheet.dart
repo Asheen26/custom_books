@@ -78,6 +78,41 @@ class _SalesOrderActionsSheetState extends State<SalesOrderActionsSheet> {
     }
   }
 
+  Future<void> _runDelete() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    final resp = await _vm.deleteSalesOrder(widget.order.id);
+    if (!mounted) return;
+
+    final int? statusCode = resp?['_statusCode'] as int?;
+    final bool ok = resp != null &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300;
+
+    setState(() => _isLoading = false);
+
+    if (ok) {
+      final msg = (resp?['message'] ?? 'Sales order deleted.').toString();
+      appLog(
+        'Sales Order deleted: ${widget.order.salesOrderNumber}',
+        name: 'SalesOrderActionsSheet',
+      );
+      Navigator.pop(context);
+      widget.onDelete();
+      ToastificationHelper.showSuccess(context, msg);
+    } else {
+      final msg =
+          (resp?['message'] ?? 'Could not delete. Please try again.').toString();
+      ToastificationHelper.showError(context, msg);
+      appLog(
+        'Sales Order delete failed (status: $statusCode): $msg',
+        name: 'SalesOrderActionsSheet',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormat =
@@ -183,10 +218,7 @@ class _SalesOrderActionsSheetState extends State<SalesOrderActionsSheet> {
                     color: Colors.red),
                 title: const Text('Delete Sales Order',
                     style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onDelete();
-                },
+                onTap: () => _runDelete(),
               ),
             ],
           ],

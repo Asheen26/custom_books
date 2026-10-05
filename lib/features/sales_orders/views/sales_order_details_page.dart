@@ -371,9 +371,40 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
       message:
           'Are you sure you want to delete this sales order? This action cannot be undone.',
     );
-    if (confirmed && context.mounted) {
+    if (!confirmed || !context.mounted) return;
+
+    setState(() => _isActionLoading = true);
+
+    final resp = await _vm.deleteSalesOrder(_order.id);
+    if (!mounted) return;
+
+    setState(() => _isActionLoading = false);
+
+    final int? statusCode = resp?['_statusCode'] as int?;
+    final bool ok = resp != null &&
+        statusCode != null &&
+        statusCode >= 200 &&
+        statusCode < 300;
+
+    if (ok) {
+      final msg =
+          (resp?['message'] ?? 'Sales order deleted.').toString();
+      appLog(
+        'Sales Order deleted: ${_order.salesOrderNumber}',
+        name: 'SalesOrderDetailsPage',
+      );
       onDelete?.call();
       Navigator.pop(context);
+      // Toast shown after pop so it appears on the list page
+      ToastificationHelper.showSuccess(context, msg);
+    } else {
+      final msg =
+          (resp?['message'] ?? 'Could not delete. Please try again.').toString();
+      ToastificationHelper.showError(context, msg);
+      appLog(
+        'Sales Order delete failed (status: $statusCode): $msg',
+        name: 'SalesOrderDetailsPage',
+      );
     }
   }
 

@@ -103,6 +103,46 @@ class SalesOrdersListViewModel {
   Future<Map<String, dynamic>?> markSalesOrderInvoiced(String salesOrderId) =>
       _postAction('mark-invoiced', salesOrderId);
 
+  /// DELETE /api/sales-orders/?sales_order_id=<id>
+  Future<Map<String, dynamic>?> deleteSalesOrder(String salesOrderId) async {
+    final url = Uri.parse('$baseUrl/api/sales-orders/').replace(
+      queryParameters: {'sales_order_id': salesOrderId},
+    );
+
+    try {
+      final token = await AuthService.instance.getValidAccessToken();
+      appLog('➡️ Sales Order delete request: $url',
+          name: 'SalesOrdersListViewModel');
+
+      final response = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      appLog(
+        '📦 Sales Order delete response (${response.statusCode}): ${response.body}',
+        name: 'SalesOrdersListViewModel',
+      );
+
+      final Map<String, dynamic> resp = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+      resp['_statusCode'] = response.statusCode;
+      return resp;
+    } catch (e, st) {
+      appLog(
+        '❌ Sales Order delete error: $e',
+        name: 'SalesOrdersListViewModel',
+        error: e,
+        stackTrace: st,
+      );
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> _postAction(
       String action, String salesOrderId) async {
     final url = Uri.parse('$baseUrl/api/sales-orders/$action/').replace(
