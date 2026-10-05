@@ -7,6 +7,7 @@ import 'package:custom_books/core/widgets/custom_search_field.dart';
 import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/empty_state_widget.dart';
 import 'package:custom_books/core/widgets/filter_sheet.dart';
+import 'package:custom_books/core/widgets/generic_sort_sheet.dart';
 import 'package:custom_books/core/widgets/list_control_bar.dart';
 import 'package:custom_books/core/widgets/more_options_sheet.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
@@ -16,7 +17,6 @@ import 'package:custom_books/features/delivery_challans/models/delivery_challan_
 import 'package:custom_books/features/delivery_challans/views/add_delivery_challan_page.dart';
 import 'package:custom_books/features/delivery_challans/views/delivery_challan_details_page.dart';
 import 'package:custom_books/features/delivery_challans/widgets/delivery_challan_card.dart';
-import 'package:custom_books/features/delivery_challans/widgets/delivery_challan_sort_sheet.dart';
 import 'package:custom_books/features/drawer/views/custom_drawer.dart';
 import 'package:flutter/material.dart';
 
@@ -37,16 +37,21 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
 
   DeliveryChallanOption? _statusFilter;
 
-  DeliveryChallanSortField _sortField = DeliveryChallanSortField.createdTime;
+  late DeliveryChallanOption _sortField;
   SortDirection _sortDirection = SortDirection.descending;
-
-  static const List<String> _tabFilterKeys = ['all', 'draft', 'delivered'];
 
   @override
   void initState() {
     super.initState();
+    _sortField = _controller.sortFields.first;
     _controller.addListener(_onControllerChanged);
-    _controller.loadOptions();
+    _controller.loadOptions().then((_) {
+      if (!mounted) return;
+      _sortField = _controller.sortFields.first;
+      _sortDirection = _controller.defaultSort.sortOrder == 'asc'
+          ? SortDirection.ascending
+          : SortDirection.descending;
+    });
     _loadChallans();
   }
 
@@ -64,26 +69,15 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
 
   String get _currentFilterKey {
     if (_statusFilter != null) return _statusFilter!.key;
-    return _tabFilterKeys[_selectedTab];
-  }
-
-  String get _currentSortByKey {
-    const enumKeys = {
-      DeliveryChallanSortField.createdTime: 'created_time',
-      DeliveryChallanSortField.date: 'date',
-      DeliveryChallanSortField.challanNumber: 'challan_number',
-      DeliveryChallanSortField.customerName: 'customer_name',
-      DeliveryChallanSortField.amount: 'total_amount',
-    };
-    final enumKey = enumKeys[_sortField] ?? 'created_time';
-    final exists = _controller.sortFieldOptions.any((o) => o.key == enumKey);
-    return exists ? enumKey : enumKey;
+    final tabs = _controller.tabs;
+    if (_selectedTab < tabs.length) return tabs[_selectedTab].key;
+    return 'all';
   }
 
   Future<void> _loadChallans() async {
     await _controller.load(
       status: _currentFilterKey,
-      sortBy: _currentSortByKey,
+      sortBy: _sortField.key,
       sortOrder: _sortDirection == SortDirection.ascending ? 'asc' : 'desc',
     );
     if (!mounted) return;
@@ -156,8 +150,8 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
   }
 
   void _openFilterSheet() async {
-    final options = _controller.filterOptions
-        .where((o) => o.key != 'all')
+    final statuses = _controller.statuses
+        .where((o) => o.key != 'all_statuses')
         .toList();
 
     final result = await showModalBottomSheet<DeliveryChallanOption?>(
@@ -166,7 +160,7 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
       backgroundColor: Colors.transparent,
       builder: (_) => FilterSheet<DeliveryChallanOption?>(
         title: 'Filter',
-        options: [null, ...options],
+        options: [null, ...statuses],
         selectedValue: _statusFilter,
         labelBuilder: (opt) => opt?.label ?? 'All Statuses',
         onSelected: (opt) => Navigator.pop(context, opt),
@@ -181,27 +175,27 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
   }
 
   void _openSortSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => DeliveryChallanSortSheet(
-        selectedField: _sortField,
-        selectedDirection: _sortDirection,
-        onApply: (field, direction) {
-          setState(() {
-            _sortField = field;
-            _sortDirection = direction;
-          });
-          _loadChallans();
-        },
-      ),
+    final sortFields = _controller.sortFields;
+    GenericSortSheet.show<DeliveryChallanOption>(
+      context,
+      fields: sortFields,
+      initialField: _sortField,
+      initialDirection: _sortDirection,
+      labelBuilder: (o) => o.label,
+      onApply: (field, direction) {
+        setState(() {
+          _sortField = field;
+          _sortDirection = direction;
+        });
+        _loadChallans();
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final visibleList = _visibleChallans;
+    final tabs = _controller.tabs;
     final totalCount = _controller.challans.length;
 
     return Scaffold(
@@ -263,7 +257,7 @@ class _DeliveryChallansPageState extends State<DeliveryChallansPage> {
                 onChanged: (_) => setState(() {}),
               ),
             ListControlBar(
-              tabs: const ['All', 'Draft', 'Delivered'],
+              tabs: tabs.map((t) => t.label).toList(),
               selectedTab: _selectedTab,
               onTabSelected: (index) {
                 setState(() {

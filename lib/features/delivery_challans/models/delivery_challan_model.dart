@@ -85,6 +85,7 @@ class DeliveryChallanLineItem {
 
 class DeliveryChallanModel {
   final String id;
+  final String customerId;
   final String challanNumber;
   final String customerName;
   final String referenceNumber;
@@ -98,6 +99,7 @@ class DeliveryChallanModel {
 
   const DeliveryChallanModel({
     required this.id,
+    this.customerId = '',
     required this.challanNumber,
     required this.customerName,
     this.referenceNumber = '',
@@ -132,6 +134,7 @@ class DeliveryChallanModel {
 
     return DeliveryChallanModel(
       id: (json['delivery_challan_id'] ?? json['id'] ?? '').toString(),
+      customerId: (json['customer_id'] ?? '').toString(),
       challanNumber: (json['challan_number'] ?? '').toString(),
       customerName: (json['customer_name'] ?? '').toString(),
       referenceNumber: (json['reference_number'] ?? '').toString(),
@@ -154,6 +157,7 @@ class DeliveryChallanModel {
 
   DeliveryChallanModel copyWith({
     String? id,
+    String? customerId,
     String? challanNumber,
     String? customerName,
     String? referenceNumber,
@@ -167,6 +171,7 @@ class DeliveryChallanModel {
   }) {
     return DeliveryChallanModel(
       id: id ?? this.id,
+      customerId: customerId ?? this.customerId,
       challanNumber: challanNumber ?? this.challanNumber,
       customerName: customerName ?? this.customerName,
       referenceNumber: referenceNumber ?? this.referenceNumber,

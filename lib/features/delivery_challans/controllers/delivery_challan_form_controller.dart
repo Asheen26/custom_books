@@ -23,18 +23,6 @@ class DeliveryChallanFormController extends ChangeNotifier {
     }
   }
 
-  static String _challanTypeFor(String label) {
-    switch (label.toLowerCase()) {
-      case 'supply on approval':
-        return 'supply_on_approval';
-      case 'others':
-        return 'others';
-      case 'job work':
-      default:
-        return 'job_work';
-    }
-  }
-
   Future<DeliveryChallanModel?> create({
     required String customerId,
     required String referenceNumber,
@@ -55,7 +43,7 @@ class DeliveryChallanFormController extends ChangeNotifier {
           '${challanDate.year.toString().padLeft(4, '0')}-'
           '${challanDate.month.toString().padLeft(2, '0')}-'
           '${challanDate.day.toString().padLeft(2, '0')}',
-      'challan_type': _challanTypeFor(type),
+      'challan_type': type,
       'line_items': lineItems
           .map(
             (i) => {

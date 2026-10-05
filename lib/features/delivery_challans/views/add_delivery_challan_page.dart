@@ -8,7 +8,9 @@ import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/customers/controllers/customers_list_controller.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/delivery_challans/controllers/delivery_challan_form_controller.dart';
+import 'package:custom_books/features/delivery_challans/controllers/delivery_challans_list_controller.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_model.dart';
+import 'package:custom_books/features/delivery_challans/models/delivery_challan_options_model.dart';
 import 'package:custom_books/features/delivery_challans/views/add_delivery_challan_line_item_page.dart';
 import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:flutter/material.dart';
@@ -26,6 +28,7 @@ class AddDeliveryChallanPage extends StatefulWidget {
 class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
     with UnsavedChangesMixin {
   final _formController = DeliveryChallanFormController();
+  final _optionsController = DeliveryChallansListController();
   final _customersController = CustomersListController();
 
   final _customerController = TextEditingController();
@@ -36,26 +39,27 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
 
   final List<DeliveryChallanLineItem> _lineItems = [];
   DateTime _challanDate = DateTime.now();
-  String _type = 'Job Work';
-
-  static const List<String> _typeOptions = [
-    'Job Work',
-    'Supply on Approval',
-    'Others',
-  ];
+  late DeliveryChallanOption _selectedType;
 
   @override
   void initState() {
     super.initState();
+    _selectedType = _optionsController.challanTypes.first;
     _formController.addListener(_onFormChanged);
+    _optionsController.addListener(_onFormChanged);
+    _optionsController.loadOptions();
     if (widget.existing != null) {
       final c = widget.existing!;
       _challanNumController.text = c.challanNumber;
       _customerController.text = c.customerName;
       _referenceController.text = c.referenceNumber;
+      _selectedCustomerId = c.customerId.isNotEmpty ? c.customerId : null;
       _lineItems.addAll(c.lineItems);
       _challanDate = c.challanDate;
-      _type = c.type;
+      final matchedType = _optionsController.challanTypes
+          .where((o) => o.label == c.type || o.key == c.type)
+          .firstOrNull;
+      if (matchedType != null) _selectedType = matchedType;
     }
     _customerController.addListener(markDirty);
     _challanNumController.addListener(markDirty);
@@ -66,6 +70,8 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
   void dispose() {
     _formController.removeListener(_onFormChanged);
     _formController.dispose();
+    _optionsController.removeListener(_onFormChanged);
+    _optionsController.dispose();
     _customersController.dispose();
     _customerController.removeListener(markDirty);
     _challanNumController.removeListener(markDirty);
@@ -117,7 +123,8 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
   }
 
   Future<void> _selectType() async {
-    final selected = await showModalBottomSheet<String>(
+    final types = _optionsController.challanTypes;
+    final selected = await showModalBottomSheet<DeliveryChallanOption>(
       context: context,
       showDragHandle: true,
       backgroundColor: context.colors.card,
@@ -137,23 +144,23 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
               ),
             ),
             const Divider(height: 1),
-            ..._typeOptions.map(
-              (type) => ListTile(
+            ...types.map(
+              (opt) => ListTile(
                 title: Text(
-                  type,
+                  opt.label,
                   style: TextStyle(
-                    color: type == _type
+                    color: opt == _selectedType
                         ? AppColors.primary
                         : context.colors.textPrimary,
-                    fontWeight: type == _type
+                    fontWeight: opt == _selectedType
                         ? FontWeight.bold
                         : FontWeight.normal,
                   ),
                 ),
-                trailing: type == _type
+                trailing: opt == _selectedType
                     ? Icon(Icons.check_rounded, color: AppColors.primary)
                     : null,
-                onTap: () => Navigator.pop(context, type),
+                onTap: () => Navigator.pop(context, opt),
               ),
             ),
           ],
@@ -162,7 +169,7 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
     );
 
     if (selected != null) {
-      setState(() => _type = selected);
+      setState(() => _selectedType = selected);
       markDirty();
     }
   }
@@ -201,7 +208,7 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
       customerId: _selectedCustomerId!,
       referenceNumber: _referenceController.text.trim(),
       challanDate: _challanDate,
-      type: _type,
+      type: _selectedType.key,
       lineItems: _lineItems,
       status: status,
     );
@@ -399,7 +406,10 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(_type, style: FormTextStyles.value(context)),
+                              Text(
+                                _selectedType.label,
+                                style: FormTextStyles.value(context),
+                              ),
                               Icon(
                                 Icons.arrow_drop_down_rounded,
                                 size: Dimensions.iconSize24,
