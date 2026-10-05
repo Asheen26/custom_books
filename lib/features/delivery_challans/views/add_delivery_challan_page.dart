@@ -4,7 +4,6 @@ import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/form_widgets.dart';
 import 'package:custom_books/core/widgets/line_item_form_widgets.dart';
-import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/customers/controllers/customers_list_controller.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
@@ -38,7 +37,6 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
   final List<DeliveryChallanLineItem> _lineItems = [];
   DateTime _challanDate = DateTime.now();
   String _type = 'Job Work';
-  bool _isLoading = true;
 
   static const List<String> _typeOptions = [
     'Job Work',
@@ -50,7 +48,6 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
   void initState() {
     super.initState();
     _formController.addListener(_onFormChanged);
-    _load();
     if (widget.existing != null) {
       final c = widget.existing!;
       _challanNumController.text = c.challanNumber;
@@ -81,13 +78,6 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
 
   void _onFormChanged() {
     if (mounted) setState(() {});
-  }
-
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
   }
 
   Future<void> _pickDate() async {
@@ -284,222 +274,197 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
                 ),
               ],
             ),
-            body: _isLoading
-                ? const FormPageSkeleton()
-                : SingleChildScrollView(
-                    padding: EdgeInsets.all(Dimensions.width15),
-                    child: Column(
-                      children: [
-                        FormCard(
-                          children: [
-                            const RequiredLabel(text: 'Customer Name'),
-                            SizedBox(height: Dimensions.height10 / 2),
-                            InkWell(
-                              onTap: isSubmitting ? null : _selectCustomer,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: Dimensions.width10 / 2,
-                                  vertical: Dimensions.height10,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: context.colors.border,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        _customerController.text.isEmpty
-                                            ? 'Start typing to select a Customer'
-                                            : _customerController.text,
-                                        style: TextStyle(
-                                          fontSize: Dimensions.font16 * 0.9,
-                                          color:
-                                              _customerController.text.isEmpty
-                                              ? context.colors.textTertiary
-                                              : context.colors.textPrimary,
-                                          fontWeight:
-                                              _customerController.text.isEmpty
-                                              ? FontWeight.normal
-                                              : FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(
-                                      Icons.add_rounded,
-                                      size: Dimensions.iconSize24,
-                                      color: context.colors.textPrimary,
-                                    ),
-                                  ],
-                                ),
-                              ),
+            body: SingleChildScrollView(
+              padding: EdgeInsets.all(Dimensions.width15),
+              child: Column(
+                children: [
+                  FormCard(
+                    children: [
+                      const RequiredLabel(text: 'Customer Name'),
+                      SizedBox(height: Dimensions.height10 / 2),
+                      InkWell(
+                        onTap: isSubmitting ? null : _selectCustomer,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: Dimensions.width10 / 2,
+                            vertical: Dimensions.height10,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: context.colors.border),
                             ),
-                            SizedBox(height: Dimensions.height20),
-
-                            Text('Reference#', style: FormTextStyles.label()),
-                            SizedBox(height: Dimensions.height10 / 2),
-                            TextField(
-                              controller: _referenceController,
-                              enabled: !isSubmitting,
-                              style: FormTextStyles.value(context),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: Dimensions.height10,
-                                ),
-                                border: UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: context.colors.border,
-                                  ),
-                                ),
-                                enabledBorder: UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: context.colors.border,
-                                  ),
-                                ),
-                                focusedBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: AppColors.primary,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _customerController.text.isEmpty
+                                      ? 'Start typing to select a Customer'
+                                      : _customerController.text,
+                                  style: TextStyle(
+                                    fontSize: Dimensions.font16 * 0.9,
+                                    color: _customerController.text.isEmpty
+                                        ? context.colors.textTertiary
+                                        : context.colors.textPrimary,
+                                    fontWeight: _customerController.text.isEmpty
+                                        ? FontWeight.normal
+                                        : FontWeight.w600,
                                   ),
                                 ),
                               ),
-                            ),
-                            SizedBox(height: Dimensions.height20),
-
-                            const RequiredLabel(text: 'Challan Date'),
-                            SizedBox(height: Dimensions.height10 / 2),
-                            InkWell(
-                              onTap: isSubmitting ? null : _pickDate,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: Dimensions.height10,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: context.colors.border,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      formatDate(_challanDate),
-                                      style: FormTextStyles.value(context),
-                                    ),
-                                    Icon(
-                                      Icons.calendar_today_outlined,
-                                      size: Dimensions.iconSize24 * 0.85,
-                                      color: context.colors.textSecondary,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: Dimensions.height20),
-
-                            Text('Type', style: FormTextStyles.label()),
-                            SizedBox(height: Dimensions.height10 / 2),
-                            InkWell(
-                              onTap: isSubmitting ? null : _selectType,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: Dimensions.height10,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: context.colors.border,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      _type,
-                                      style: FormTextStyles.value(context),
-                                    ),
-                                    Icon(
-                                      Icons.arrow_drop_down_rounded,
-                                      size: Dimensions.iconSize24,
-                                      color: context.colors.textSecondary,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: Dimensions.height15),
-
-                        FormCard(
-                          children: [
-                            ..._lineItems.asMap().entries.map(
-                              (entry) => _lineItemCard(entry.key, entry.value),
-                            ),
-                            AddLineItemButton(
-                              onPressed: isSubmitting ? () {} : _addLineItem,
-                            ),
-                            if (_lineItems.isNotEmpty) ...[
-                              SizedBox(height: Dimensions.height20),
-                              Container(
-                                padding: EdgeInsets.all(Dimensions.width15),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.05,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    Dimensions.radius15,
-                                  ),
-                                  border: Border.all(
-                                    color: AppColors.primary.withValues(
-                                      alpha: 0.18,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    _totalRow(
-                                      'Sub Total',
-                                      _lineItems.fold<double>(
-                                        0,
-                                        (s, i) => s + i.net,
-                                      ),
-                                    ),
-                                    _totalRow(
-                                      'Tax',
-                                      _lineItems.fold<double>(
-                                        0,
-                                        (s, i) => s + i.taxAmount,
-                                      ),
-                                    ),
-                                    const FormDivider(),
-                                    _totalRow(
-                                      'Total',
-                                      _lineItems.fold<double>(
-                                        0,
-                                        (s, i) => s + i.net + i.taxAmount,
-                                      ),
-                                      bold: true,
-                                    ),
-                                  ],
-                                ),
+                              Icon(
+                                Icons.add_rounded,
+                                size: Dimensions.iconSize24,
+                                color: context.colors.textPrimary,
                               ),
                             ],
-                          ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: Dimensions.height20),
+
+                      Text('Reference#', style: FormTextStyles.label()),
+                      SizedBox(height: Dimensions.height10 / 2),
+                      TextField(
+                        controller: _referenceController,
+                        enabled: !isSubmitting,
+                        style: FormTextStyles.value(context),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: Dimensions.height10,
+                          ),
+                          border: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: context.colors.border,
+                            ),
+                          ),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: context.colors.border,
+                            ),
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: AppColors.primary),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: Dimensions.height20),
+
+                      const RequiredLabel(text: 'Challan Date'),
+                      SizedBox(height: Dimensions.height10 / 2),
+                      InkWell(
+                        onTap: isSubmitting ? null : _pickDate,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            vertical: Dimensions.height10,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: context.colors.border),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                formatDate(_challanDate),
+                                style: FormTextStyles.value(context),
+                              ),
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: Dimensions.iconSize24 * 0.85,
+                                color: context.colors.textSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: Dimensions.height20),
+
+                      Text('Type', style: FormTextStyles.label()),
+                      SizedBox(height: Dimensions.height10 / 2),
+                      InkWell(
+                        onTap: isSubmitting ? null : _selectType,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            vertical: Dimensions.height10,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: context.colors.border),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_type, style: FormTextStyles.value(context)),
+                              Icon(
+                                Icons.arrow_drop_down_rounded,
+                                size: Dimensions.iconSize24,
+                                color: context.colors.textSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: Dimensions.height15),
+
+                  FormCard(
+                    children: [
+                      ..._lineItems.asMap().entries.map(
+                        (entry) => _lineItemCard(entry.key, entry.value),
+                      ),
+                      AddLineItemButton(
+                        onPressed: isSubmitting ? () {} : _addLineItem,
+                      ),
+                      if (_lineItems.isNotEmpty) ...[
+                        SizedBox(height: Dimensions.height20),
+                        Container(
+                          padding: EdgeInsets.all(Dimensions.width15),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(
+                              Dimensions.radius15,
+                            ),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.18),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              _totalRow(
+                                'Sub Total',
+                                _lineItems.fold<double>(0, (s, i) => s + i.net),
+                              ),
+                              _totalRow(
+                                'Tax',
+                                _lineItems.fold<double>(
+                                  0,
+                                  (s, i) => s + i.taxAmount,
+                                ),
+                              ),
+                              const FormDivider(),
+                              _totalRow(
+                                'Total',
+                                _lineItems.fold<double>(
+                                  0,
+                                  (s, i) => s + i.net + i.taxAmount,
+                                ),
+                                bold: true,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
+                ],
+              ),
+            ),
           ),
 
           if (isSubmitting)
