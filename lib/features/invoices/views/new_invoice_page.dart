@@ -164,7 +164,6 @@ class _NewInvoicePageState extends State<NewInvoicePage>
     markClean();
   }
 
-
   /// Validates form fields and builds the line-items payload.
   /// Returns the payload list, or null if validation failed.
   List<Map<String, dynamic>>? _validateAndBuildPayload(String actionLabel) {
@@ -183,11 +182,13 @@ class _NewInvoicePageState extends State<NewInvoicePage>
       return null;
     }
     return _lineItems
-        .map((item) => {
-              'item_id': item.itemId,
-              'quantity': item.quantity.toString(),
-              'rate': item.rate.toStringAsFixed(2),
-            })
+        .map(
+          (item) => {
+            'item_id': item.itemId,
+            'quantity': item.quantity.toString(),
+            'rate': item.rate.toStringAsFixed(2),
+          },
+        )
         .toList();
   }
 
@@ -286,7 +287,10 @@ class _NewInvoicePageState extends State<NewInvoicePage>
     if (!mounted) return;
     if (error == null) {
       markClean();
-      ToastificationHelper.showSuccess(context, 'Invoice updated successfully.');
+      ToastificationHelper.showSuccess(
+        context,
+        'Invoice updated successfully.',
+      );
       Navigator.pop(context);
     } else {
       ToastificationHelper.showError(context, error);
@@ -313,7 +317,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                       onLeadingPressed: () =>
                           onPopInvokedWithResult(false, null),
                       actions: [
-                      AppBarElevatedButton(
+                        AppBarElevatedButton(
                           label: widget.isEditing ? 'UPDATE' : 'SAVE AS DRAFT',
                           onPressed: _invoiceController.isSaving
                               ? null
@@ -363,12 +367,12 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                             onCustomerNameTap: () async {
                               final picked =
                                   await Navigator.push<CustomerModel>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const _CustomerPickerPage(),
-                                ),
-                              );
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const _CustomerPickerPage(),
+                                    ),
+                                  );
                               if (picked != null && mounted) {
                                 setState(() {
                                   _selectedCustomerId = picked.id;
@@ -376,8 +380,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                                   if (_emailCommunications.isEmpty &&
                                       picked.email != null &&
                                       picked.email!.isNotEmpty) {
-                                    _emailCommunications
-                                        .add(picked.email!);
+                                    _emailCommunications.add(picked.email!);
                                   }
                                 });
                                 markDirty();
@@ -628,8 +631,7 @@ class _CustomerPickerPageState extends State<_CustomerPickerPage> {
   }
 
   void _onScroll() {
-    if (_scroll.position.pixels >=
-        _scroll.position.maxScrollExtent - 300) {
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 300) {
       _ctrl.loadNextPage();
     }
   }
@@ -689,8 +691,7 @@ class _CustomerPickerPageState extends State<_CustomerPickerPage> {
           : ListView.builder(
               controller: _scroll,
               padding: EdgeInsets.all(Dimensions.width20),
-              itemCount: _ctrl.customers.length +
-                  (_ctrl.isLoadingMore ? 1 : 0),
+              itemCount: _ctrl.customers.length + (_ctrl.isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index >= _ctrl.customers.length) {
                   return const Padding(
@@ -703,9 +704,9 @@ class _CustomerPickerPageState extends State<_CustomerPickerPage> {
                 final customer = _ctrl.customers[index];
                 return Padding(
                   padding: EdgeInsets.only(bottom: Dimensions.height10),
-                  child: GestureDetector(
+                  child: CustomerCardWidget(
+                    customer: customer,
                     onTap: () => Navigator.pop(context, customer),
-                    child: CustomerCardWidget(customer: customer),
                   ),
                 );
               },

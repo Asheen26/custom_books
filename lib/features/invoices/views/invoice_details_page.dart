@@ -32,8 +32,10 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
     _tabController = TabController(length: 2, vsync: this);
     _controller.addListener(_onControllerChanged);
     _loadInvoice();
-    appLog('📄 InvoiceDetailsPage init: ${widget.invoiceId}',
-        name: 'InvoiceDetailsPage');
+    appLog(
+      '📄 InvoiceDetailsPage init: ${widget.invoiceId}',
+      name: 'InvoiceDetailsPage',
+    );
   }
 
   @override
@@ -78,8 +80,7 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        NewInvoicePage(existingInvoice: invoice),
+                    builder: (_) => NewInvoicePage(existingInvoice: invoice),
                   ),
                 );
                 // Refresh after editing
@@ -106,8 +107,19 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
                   message:
                       'Are you sure you want to delete this invoice? This action cannot be undone.',
                 );
-                if (confirmed && context.mounted) {
-                  Navigator.pop(context);
+                if (!confirmed || !context.mounted) return;
+
+                final error = await _controller.delete(widget.invoiceId);
+                if (!context.mounted) return;
+
+                if (error == null) {
+                  ToastificationHelper.showSuccess(
+                    context,
+                    'Invoice deleted successfully.',
+                  );
+                  Navigator.pop(context, true); // signal list to refresh
+                } else {
+                  ToastificationHelper.showError(context, error);
                 }
               }
             },

@@ -122,8 +122,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
     await _controller.loadFirstPage(
       status: _effectiveStatus,
       sortBy: _sortKey(_sortField),
-      sortOrder:
-          _sortDirection == SortDirection.ascending ? 'asc' : 'desc',
+      sortOrder: _sortDirection == SortDirection.ascending ? 'asc' : 'desc',
       search: _searchController.text.trim(),
     );
     if (!mounted) return;
@@ -301,7 +300,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           physics: const AlwaysScrollableScrollPhysics(
                             parent: BouncingScrollPhysics(),
                           ),
-                          itemCount: invoices.length +
+                          itemCount:
+                              invoices.length +
                               (_controller.isLoadingMore ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index >= invoices.length) {
@@ -321,7 +321,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                 ),
                               );
                             }
-                            return InvoiceListItem(invoice: invoices[index]);
+                            return InvoiceListItem(
+                              invoice: invoices[index],
+                              onRefresh: _loadInvoices,
+                            );
                           },
                         ),
                 ),

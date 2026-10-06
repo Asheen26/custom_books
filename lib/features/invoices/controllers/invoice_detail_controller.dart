@@ -16,6 +16,49 @@ class InvoiceDetailController extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  /// Deletes the invoice with [invoiceId] via DELETE /api/invoices/?invoice_id=.
+  /// Returns null on success, or an error message on failure.
+  Future<String?> delete(String invoiceId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final resp = await _vm.deleteInvoice(invoiceId);
+      final int? statusCode = resp?['_statusCode'] as int?;
+
+      if (resp != null &&
+          statusCode != null &&
+          statusCode >= 200 &&
+          statusCode < 300) {
+        appLog(
+          '✅ Invoice deleted (id: $invoiceId)',
+          name: 'InvoiceDetailController',
+        );
+        return null; // success
+      } else {
+        final msg =
+            (resp?['message'] ?? 'Could not delete invoice. Please try again.')
+                .toString();
+        appLog(
+          '⚠️ Invoice delete failed (status: $statusCode): $msg',
+          name: 'InvoiceDetailController',
+        );
+        return msg;
+      }
+    } catch (e, st) {
+      appLog(
+        '❌ Invoice delete error: $e',
+        name: 'InvoiceDetailController',
+        error: e,
+        stackTrace: st,
+      );
+      return e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> load(String invoiceId) async {
     _isLoading = true;
     notifyListeners();

@@ -6,8 +6,9 @@ import 'package:flutter/material.dart';
 
 class CustomerCardWidget extends StatelessWidget {
   final CustomerModel customer;
+  final VoidCallback? onTap;
 
-  const CustomerCardWidget({super.key, required this.customer});
+  const CustomerCardWidget({super.key, required this.customer, this.onTap});
 
   Color _getAvatarColor(String name) {
     final colors = [
@@ -26,14 +27,16 @@ class CustomerCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CustomerDetailsPage(customer: customer),
-          ),
-        );
-      },
+      onTap:
+          onTap ??
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CustomerDetailsPage(customer: customer),
+              ),
+            );
+          },
       child: Container(
         padding: EdgeInsets.all(Dimensions.width20),
         decoration: BoxDecoration(
