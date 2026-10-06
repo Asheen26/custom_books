@@ -144,7 +144,12 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
             color: context.colors.card,
             elevation: 8,
             onSelected: (value) async {
-              if (value == 'delete') {
+              if (value == 'print') {
+                ToastificationHelper.showInfo(
+                  context,
+                  'Printing invoices is coming soon.',
+                );
+              } else if (value == 'delete') {
                 final confirmed = await showConfirmationDialog(
                   context,
                   title: 'Delete Invoice',

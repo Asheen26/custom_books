@@ -69,6 +69,7 @@ class _InvoiceDetailsTabViewState extends State<InvoiceDetailsTabView> {
       padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
       physics: const BouncingScrollPhysics(),
       children: [
+        // Invoice info card
         Container(
           padding: EdgeInsets.all(Dimensions.width20),
           decoration: BoxDecoration(
@@ -98,25 +99,168 @@ class _InvoiceDetailsTabViewState extends State<InvoiceDetailsTabView> {
                     ? '-'
                     : invoice.placeOfSupply,
               ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Sub Total:',
-                value: '₹${invoice.subTotal.toStringAsFixed(2)}',
-              ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Tax:',
-                value: '₹${invoice.taxAmount.toStringAsFixed(2)}',
-              ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Total:',
-                value: '₹${invoice.total.toStringAsFixed(2)}',
-              ),
+              if (invoice.salesperson != null &&
+                  invoice.salesperson!.isNotEmpty) ...[
+                SizedBox(height: Dimensions.height15),
+                DetailRow(label: 'Salesperson:', value: invoice.salesperson!),
+              ],
+              if (invoice.orderNumber != null &&
+                  invoice.orderNumber!.isNotEmpty) ...[
+                SizedBox(height: Dimensions.height15),
+                DetailRow(label: 'Order Number:', value: invoice.orderNumber!),
+              ],
             ],
           ),
         ),
-        SizedBox(height: Dimensions.height30),
+        SizedBox(height: Dimensions.height15),
+
+        // Line items card
+        if (invoice.lineItems.isNotEmpty) ...[
+          Container(
+            padding: EdgeInsets.all(Dimensions.width20),
+            decoration: BoxDecoration(
+              color: context.colors.card,
+              borderRadius: BorderRadius.circular(Dimensions.radius15),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0x08000000),
+                  blurRadius: Dimensions.radius15 * 0.53,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Line Items',
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.85,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: Dimensions.height15),
+                ...invoice.lineItems.map(
+                  (item) => Padding(
+                    padding: EdgeInsets.only(bottom: Dimensions.height10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Item name + description
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.itemName,
+                                style: TextStyle(
+                                  fontSize: Dimensions.font16 * 0.85,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.colors.textPrimary,
+                                ),
+                              ),
+                              if (item.description != null &&
+                                  item.description!.isNotEmpty)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    top: Dimensions.height10 / 4,
+                                  ),
+                                  child: Text(
+                                    item.description!,
+                                    style: TextStyle(
+                                      fontSize: Dimensions.font16 * 0.75,
+                                      color: context.colors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  top: Dimensions.height10 / 4,
+                                ),
+                                child: Text(
+                                  '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}'
+                                  ' × ₹${item.rate.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: Dimensions.font16 * 0.75,
+                                    color: context.colors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: Dimensions.width10),
+                        // Amount
+                        Text(
+                          '₹${item.amount.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: Dimensions.font16 * 0.85,
+                            fontWeight: FontWeight.w700,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(color: context.colors.border, height: 1),
+                SizedBox(height: Dimensions.height15),
+                _summaryRow('Sub Total', invoice.subTotal),
+                SizedBox(height: Dimensions.height10),
+                _summaryRow('Tax', invoice.taxAmount),
+                SizedBox(height: Dimensions.height10),
+                _summaryRow('Total', invoice.total, bold: true),
+                if (invoice.amountPaid > 0) ...[
+                  SizedBox(height: Dimensions.height10),
+                  _summaryRow('Amount Paid', invoice.amountPaid),
+                  SizedBox(height: Dimensions.height10),
+                  _summaryRow(
+                    'Balance Due',
+                    invoice.balanceDue,
+                    bold: true,
+                    color: invoice.balanceDue > 0
+                        ? AppColors.error
+                        : AppColors.success,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(height: Dimensions.height15),
+        ],
+
+        SizedBox(height: Dimensions.height15),
+      ],
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    double amount, {
+    bool bold = false,
+    Color? color,
+  }) {
+    final textColor = color ?? context.colors.textPrimary;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Dimensions.font16 * 0.82,
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            color: context.colors.textSecondary,
+          ),
+        ),
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: Dimensions.font16 * 0.85,
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+            color: textColor,
+          ),
+        ),
       ],
     );
   }

@@ -59,7 +59,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
   final List<InvoiceLineItem> _lineItems = [];
   List<String> _emailCommunications = [];
   bool _paymentReceived = false;
-  bool _isLoading = true;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -135,10 +135,9 @@ class _NewInvoicePageState extends State<NewInvoicePage>
     super.dispose();
   }
 
-  /// Simulates preparing the form so the shimmer skeleton is shown briefly.
+  /// Sets the form as ready. Data is initialised synchronously in initState
+  /// so no async work is needed here — the skeleton is skipped entirely.
   Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
     setState(() => _isLoading = false);
   }
@@ -153,6 +152,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
       _termsController.clear();
       _selectedCustomerId = null;
       _selectedPlaceOfSupply = 'Dubai';
+      // Keep the current invoice number — do not reset to a hardcoded value.
       _invoiceDate = DateTime.now();
       _selectedTerms = 'Due on Receipt';
       _dueDate = DateTime.now();
@@ -431,8 +431,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                               LabeledTextField(
                                 label: 'Salesperson',
                                 controller: _salespersonController,
-                                placeholder: 'Select or Add Salesperson',
-                                suffixIcon: Icons.keyboard_arrow_down_rounded,
+                                placeholder: 'Enter salesperson name',
                               ),
                               SizedBox(height: Dimensions.height20),
                               LabeledTextField(
