@@ -217,12 +217,12 @@ class _InvoicesPageState extends State<InvoicesPage> {
           backgroundColor: context.colors.card,
           strokeWidth: 2.5,
           onRefresh: _loadInvoices,
-          child: NestedScrollView(
+          child: CustomScrollView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            headerSliverBuilder: (context, _) => [
+            slivers: [
               CustomSliverAppBar(
                 title: 'Invoices',
                 subtitle:
@@ -250,16 +250,20 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   SizedBox(width: Dimensions.width20),
                 ],
               ),
-            ],
-            body: Column(
-              children: [
-                if (_searchOpen)
-                  ListSearchField(
+
+              // Search field
+              if (_searchOpen)
+                SliverToBoxAdapter(
+                  child: ListSearchField(
                     controller: _searchController,
                     hintText: 'Search by customer or invoice number',
                     onChanged: _onSearchChanged,
                   ),
-                ListControlBar(
+                ),
+
+              // Tab bar + filter/sort controls
+              SliverToBoxAdapter(
+                child: ListControlBar(
                   tabs: const ['All', 'Draft', 'Overdue', 'Paid'],
                   selectedTab: _selectedTab,
                   onTabSelected: (index) {
@@ -273,63 +277,78 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   onFilterTap: _openFilterSheet,
                   onSortTap: _openSortSheet,
                 ),
-                if (_statusFilter != null)
-                  ActiveFilterBanner(
+              ),
+
+              // Active filter banner
+              if (_statusFilter != null)
+                SliverToBoxAdapter(
+                  child: ActiveFilterBanner(
                     label: 'Status: ${_statusFilter!.label}',
                     onClear: () {
                       setState(() => _statusFilter = null);
                       _loadInvoices();
                     },
                   ),
-                Expanded(
-                  child: _controller.isLoading && invoices.isEmpty
-                      ? const DocumentListSkeleton(showSubDate: true)
-                      : invoices.isEmpty
-                      ? const EmptyStateWidget(
-                          icon: Icons.description_outlined,
-                          title: 'No invoices found',
-                          subtitle: 'Tap the + button to create a new invoice.',
-                        )
-                      : ListView.builder(
-                          padding: EdgeInsets.fromLTRB(
-                            Dimensions.width20,
-                            0,
-                            Dimensions.width20,
-                            Dimensions.listBottomSpace,
-                          ),
-                          physics: const AlwaysScrollableScrollPhysics(
-                            parent: BouncingScrollPhysics(),
-                          ),
-                          itemCount:
-                              invoices.length +
-                              (_controller.isLoadingMore ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index >= invoices.length) {
-                              return Padding(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: Dimensions.height20,
-                                ),
-                                child: const Center(
-                                  child: SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                            return InvoiceListItem(
-                              invoice: invoices[index],
-                              onRefresh: _loadInvoices,
-                            );
-                          },
-                        ),
                 ),
-              ],
-            ),
+
+              // List content
+              if (_controller.isLoading && invoices.isEmpty)
+                const SliverToBoxAdapter(
+                  child: DocumentListSkeleton(showSubDate: true),
+                )
+              else if (invoices.isEmpty)
+                const SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverToBoxAdapter(
+                    child: EmptyStateWidget(
+                      icon: Icons.description_outlined,
+                      title: 'No invoices found',
+                      subtitle: 'Tap the + button to create a new invoice.',
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    Dimensions.width20,
+                    0,
+                    Dimensions.width20,
+                    Dimensions.listBottomSpace,
+                  ),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        if (index >= invoices.length) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: Dimensions.height20,
+                            ),
+                            child: const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: Dimensions.height10),
+                          child: InvoiceListItem(
+                            invoice: invoices[index],
+                            onRefresh: _loadInvoices,
+                          ),
+                        );
+                      },
+                      childCount:
+                          invoices.length + (_controller.isLoadingMore ? 1 : 0),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

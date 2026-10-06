@@ -10,11 +10,57 @@ class InvoiceDetailController extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  bool _isSending = false;
+  bool get isSending => _isSending;
+
   InvoiceModel? _invoice;
   InvoiceModel? get invoice => _invoice;
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+
+  /// Sends the invoice via POST /api/invoices/send/?invoice_id=.
+  /// Returns null on success, or an error message on failure.
+  Future<String?> send(String invoiceId) async {
+    _isSending = true;
+    notifyListeners();
+
+    try {
+      final resp = await _vm.sendInvoice(invoiceId);
+      final int? statusCode = resp?['_statusCode'] as int?;
+
+      if (resp != null &&
+          statusCode != null &&
+          statusCode >= 200 &&
+          statusCode < 300) {
+        appLog(
+          '✅ Invoice sent (id: $invoiceId)',
+          name: 'InvoiceDetailController',
+        );
+        return null; // success
+      } else {
+        final msg =
+            (resp?['message'] ?? 'Could not send invoice. Please try again.')
+                .toString();
+        appLog(
+          '⚠️ Invoice send failed (status: $statusCode): $msg',
+          name: 'InvoiceDetailController',
+        );
+        return msg;
+      }
+    } catch (e, st) {
+      appLog(
+        '❌ Invoice send error: $e',
+        name: 'InvoiceDetailController',
+        error: e,
+        stackTrace: st,
+      );
+      return e.toString();
+    } finally {
+      _isSending = false;
+      notifyListeners();
+    }
+  }
 
   /// Deletes the invoice with [invoiceId] via DELETE /api/invoices/?invoice_id=.
   /// Returns null on success, or an error message on failure.

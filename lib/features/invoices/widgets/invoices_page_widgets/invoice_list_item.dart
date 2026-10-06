@@ -30,13 +30,13 @@ class InvoiceListItem extends StatelessWidget {
       ),
       amount: '₹${invoice.total.toStringAsFixed(2)}',
       onTap: () async {
-        final deleted = await Navigator.push<bool>(
+        final needsRefresh = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
             builder: (context) => InvoiceDetailsPage(invoiceId: invoice.id),
           ),
         );
-        if (deleted == true) onRefresh?.call();
+        if (needsRefresh == true) onRefresh?.call();
       },
     );
   }

@@ -6,6 +6,7 @@ import 'package:custom_books/core/widgets/confirmation_dialog.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/invoices/controllers/invoice_detail_controller.dart';
+import 'package:custom_books/features/invoices/models/invoice_model.dart';
 import 'package:custom_books/features/invoices/views/new_invoice_page.dart';
 import 'package:custom_books/features/invoices/widgets/invoice_details_tab_view.dart';
 import 'package:custom_books/features/invoices/widgets/invoice_header_card.dart';
@@ -58,6 +59,21 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
     }
   }
 
+  Future<void> _sendInvoice() async {
+    appLog('📤 Send invoice tapped', name: 'InvoiceDetailsPage');
+    final error = await _controller.send(widget.invoiceId);
+    if (!mounted) return;
+    if (error == null) {
+      ToastificationHelper.showSuccess(context, 'Invoice sent successfully.');
+      // Reload the detail so the Send button disappears and status updates,
+      // then signal the list to refresh when the user navigates back.
+      await _loadInvoice();
+      if (mounted) Navigator.pop(context, true);
+    } else {
+      ToastificationHelper.showError(context, error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final invoice = _controller.invoice;
@@ -68,6 +84,34 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
         title: 'Invoice Details',
         backgroundColor: context.colors.card,
         actions: [
+          if (invoice != null && invoice.status == InvoiceStatus.draft)
+            _controller.isSending
+                ? Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Dimensions.width10,
+                      vertical: Dimensions.height10,
+                    ),
+                    child: const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  )
+                : TextButton.icon(
+                    onPressed: _sendInvoice,
+                    icon: const Icon(Icons.send_rounded, size: 16),
+                    label: const Text('Send'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      textStyle: TextStyle(
+                        fontSize: Dimensions.font16 * 0.82,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
           if (invoice != null)
             IconButton(
               icon: Icon(
