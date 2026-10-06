@@ -13,6 +13,7 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
     super.key,
     required this.customerNameController,
     required this.onClearCustomer,
+    this.onCustomerNameTap,
     required this.onAddressTap,
     required this.onCustomerDetailsTap,
     required this.selectedTaxTreatment,
@@ -33,6 +34,7 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
   // Customer
   final TextEditingController customerNameController;
   final VoidCallback onClearCustomer;
+  final VoidCallback? onCustomerNameTap;
   final VoidCallback onAddressTap;
   final VoidCallback onCustomerDetailsTap;
 
@@ -109,28 +111,31 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: Dimensions.width15,
-                          vertical: Dimensions.height15,
-                        ),
-                        decoration: BoxDecoration(
-                          color: context.colors.surfaceLight,
-                          borderRadius: BorderRadius.circular(
-                            Dimensions.radius15,
+                      child: GestureDetector(
+                        onTap: onCustomerNameTap,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: Dimensions.width15,
+                            vertical: Dimensions.height15,
                           ),
-                          border: Border.all(color: context.colors.border),
-                        ),
-                        child: Text(
-                          customerNameController.text.isEmpty
-                              ? 'Select Customer'
-                              : customerNameController.text,
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.85,
-                            color: customerNameController.text.isEmpty
-                                ? context.colors.textTertiary
-                                : context.colors.textPrimary,
-                            fontWeight: FontWeight.w600,
+                          decoration: BoxDecoration(
+                            color: context.colors.surfaceLight,
+                            borderRadius: BorderRadius.circular(
+                              Dimensions.radius15,
+                            ),
+                            border: Border.all(color: context.colors.border),
+                          ),
+                          child: Text(
+                            customerNameController.text.isEmpty
+                                ? 'Select Customer'
+                                : customerNameController.text,
+                            style: TextStyle(
+                              fontSize: Dimensions.font16 * 0.85,
+                              color: customerNameController.text.isEmpty
+                                  ? context.colors.textTertiary
+                                  : context.colors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),

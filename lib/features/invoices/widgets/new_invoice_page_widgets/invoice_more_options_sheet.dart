@@ -8,6 +8,9 @@ void showInvoiceMoreOptionsSheet(
   BuildContext context, {
   required TextEditingController customerNameController,
   required VoidCallback onResetForm,
+  /// Called when the user taps "Save and send". Pass null to disable the tile
+  /// while a save operation is already in progress.
+  VoidCallback? onSaveAndSend,
 }) {
   showModalBottomSheet(
     context: context,
@@ -34,24 +37,23 @@ void showInvoiceMoreOptionsSheet(
               );
             },
           ),
-          _moreOptionTile(ctx, Icons.send_rounded, 'Save and send', () {
-            if (customerNameController.text.trim().isEmpty) {
-              ToastificationHelper.showError(
-                context,
-                'Please select a customer before sending.',
-              );
-              return;
-            }
-            ToastificationHelper.showSuccess(
-              context,
-              'Invoice saved and sent.',
-            );
-            Navigator.pop(context);
-          }),
-          _moreOptionTile(ctx, Icons.refresh_rounded, 'Reset form', () {
-            onResetForm();
-            ToastificationHelper.showInfo(context, 'Form reset.');
-          }),
+          _moreOptionTile(
+            ctx,
+            Icons.send_rounded,
+            'Save and send',
+            onSaveAndSend == null
+                ? null
+                : () => onSaveAndSend(),
+          ),
+          _moreOptionTile(
+            ctx,
+            Icons.refresh_rounded,
+            'Reset form',
+            () {
+              onResetForm();
+              ToastificationHelper.showInfo(context, 'Form reset.');
+            },
+          ),
           SizedBox(height: Dimensions.height20),
         ],
       ),
@@ -63,21 +65,30 @@ Widget _moreOptionTile(
   BuildContext sheetContext,
   IconData icon,
   String label,
-  VoidCallback onTap,
+  VoidCallback? onTap,
 ) {
+  final bool disabled = onTap == null;
   return ListTile(
-    leading: Icon(icon, color: AppColors.primary),
+    enabled: !disabled,
+    leading: Icon(
+      icon,
+      color: disabled ? sheetContext.colors.textTertiary : AppColors.primary,
+    ),
     title: Text(
       label,
       style: TextStyle(
         fontSize: Dimensions.font16 * 0.9,
         fontWeight: FontWeight.w600,
-        color: sheetContext.colors.textPrimary,
+        color: disabled
+            ? sheetContext.colors.textTertiary
+            : sheetContext.colors.textPrimary,
       ),
     ),
-    onTap: () {
-      Navigator.pop(sheetContext);
-      onTap();
-    },
+    onTap: disabled
+        ? null
+        : () {
+            Navigator.pop(sheetContext);
+            onTap();
+          },
   );
 }

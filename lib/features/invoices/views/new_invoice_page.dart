@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
@@ -6,7 +7,10 @@ import 'package:custom_books/core/widgets/custom_sliver_appbar.dart';
 import 'package:custom_books/core/widgets/form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
+import 'package:custom_books/features/customers/controllers/customers_list_controller.dart';
 import 'package:custom_books/features/customers/models/customer_model.dart';
+import 'package:custom_books/features/customers/widgets/customer_page_widgets/customer_card_widget.dart';
+import 'package:custom_books/features/invoices/controllers/invoice_form_controller.dart';
 import 'package:custom_books/features/invoices/models/invoice_model.dart';
 import 'package:custom_books/core/widgets/labeled_text_field.dart';
 import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_customer_info_card.dart';
@@ -40,7 +44,11 @@ class _NewInvoicePageState extends State<NewInvoicePage>
       TextEditingController();
   final TextEditingController _termsController = TextEditingController();
 
+  // API controller
+  final InvoiceFormController _invoiceController = InvoiceFormController();
+
   // Form data
+  String? _selectedCustomerId; // UUID sent to API
   final String _selectedTaxTreatment = 'VAT Registered';
   String _selectedPlaceOfSupply = 'Dubai';
   late String _invoiceNumber;
@@ -61,6 +69,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
 
     if (existing != null) {
       // Pre-fill from existing invoice (edit mode)
+      _selectedCustomerId = existing.customerId;
       _customerNameController.text = existing.customerName;
       _orderNumberController.text = existing.orderNumber ?? '';
       _salespersonController.text = existing.salesperson ?? '';
@@ -78,6 +87,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
       _emailCommunications = List<String>.from(existing.emailCommunications);
       _paymentReceived = existing.paymentReceived;
     } else if (widget.customer != null) {
+      _selectedCustomerId = widget.customer!.id;
       _customerNameController.text = widget.customer!.name;
       if (widget.customer!.email != null &&
           widget.customer!.email!.isNotEmpty) {
@@ -121,6 +131,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
     _subjectController.dispose();
     _customerNotesController.dispose();
     _termsController.dispose();
+    _invoiceController.dispose();
     super.dispose();
   }
 
@@ -140,6 +151,7 @@ class _NewInvoicePageState extends State<NewInvoicePage>
       _subjectController.clear();
       _customerNotesController.text = 'Thanks for your business.';
       _termsController.clear();
+      _selectedCustomerId = null;
       _selectedPlaceOfSupply = 'Dubai';
       _invoiceDate = DateTime.now();
       _selectedTerms = 'Due on Receipt';
@@ -150,6 +162,135 @@ class _NewInvoicePageState extends State<NewInvoicePage>
       _paymentReceived = false;
     });
     markClean();
+  }
+
+
+  /// Validates form fields and builds the line-items payload.
+  /// Returns the payload list, or null if validation failed.
+  List<Map<String, dynamic>>? _validateAndBuildPayload(String actionLabel) {
+    if (_selectedCustomerId == null || _selectedCustomerId!.isEmpty) {
+      ToastificationHelper.showError(
+        context,
+        'Please select a customer before $actionLabel.',
+      );
+      return null;
+    }
+    if (_lineItems.isEmpty) {
+      ToastificationHelper.showError(
+        context,
+        'Please add at least one line item.',
+      );
+      return null;
+    }
+    return _lineItems
+        .map((item) => {
+              'item_id': item.itemId,
+              'quantity': item.quantity.toString(),
+              'rate': item.rate.toStringAsFixed(2),
+            })
+        .toList();
+  }
+
+  String get _formattedInvoiceDate =>
+      '${_invoiceDate.year.toString().padLeft(4, '0')}-'
+      '${_invoiceDate.month.toString().padLeft(2, '0')}-'
+      '${_invoiceDate.day.toString().padLeft(2, '0')}';
+
+  Future<void> _saveAsDraft() async {
+    final lineItemsPayload = _validateAndBuildPayload('saving');
+    if (lineItemsPayload == null) return;
+
+    appLog('💾 Save as Draft tapped', name: 'NewInvoicePage');
+
+    final error = await _invoiceController.saveAsDraft(
+      customerId: _selectedCustomerId!,
+      placeOfSupply: _selectedPlaceOfSupply,
+      invoiceDate: _formattedInvoiceDate,
+      paymentTerms: InvoiceFormController.termsToApiKey(_selectedTerms),
+      subject: _subjectController.text.trim(),
+      taxType: _isTaxInclusive ? 'inclusive' : 'exclusive',
+      customerNotes: _customerNotesController.text.trim(),
+      orderNumber: _orderNumberController.text.trim(),
+      lineItems: lineItemsPayload,
+    );
+
+    if (!mounted) return;
+    if (error == null) {
+      markClean();
+      ToastificationHelper.showSuccess(context, 'Invoice saved as draft.');
+      Navigator.pop(context);
+    } else {
+      ToastificationHelper.showError(context, error);
+    }
+  }
+
+  Future<void> _saveAndSend() async {
+    final lineItemsPayload = _validateAndBuildPayload('sending');
+    if (lineItemsPayload == null) return;
+
+    appLog('📤 Save and Send tapped', name: 'NewInvoicePage');
+
+    final error = await _invoiceController.saveAndSend(
+      customerId: _selectedCustomerId!,
+      placeOfSupply: _selectedPlaceOfSupply,
+      invoiceDate: _formattedInvoiceDate,
+      paymentTerms: InvoiceFormController.termsToApiKey(_selectedTerms),
+      subject: _subjectController.text.trim(),
+      taxType: _isTaxInclusive ? 'inclusive' : 'exclusive',
+      customerNotes: _customerNotesController.text.trim(),
+      orderNumber: _orderNumberController.text.trim(),
+      lineItems: lineItemsPayload,
+    );
+
+    if (!mounted) return;
+    if (error == null) {
+      markClean();
+      ToastificationHelper.showSuccess(
+        context,
+        'Invoice saved and sent successfully.',
+      );
+      Navigator.pop(context);
+    } else {
+      ToastificationHelper.showError(context, error);
+    }
+  }
+
+  Future<void> _updateInvoice() async {
+    final invoiceId = widget.existingInvoice?.id;
+    if (invoiceId == null || invoiceId.isEmpty) {
+      ToastificationHelper.showError(
+        context,
+        'Cannot update: invoice ID is missing.',
+      );
+      return;
+    }
+
+    final lineItemsPayload = _validateAndBuildPayload('updating');
+    if (lineItemsPayload == null) return;
+
+    appLog('\u270f\ufe0f Update Invoice tapped', name: 'NewInvoicePage');
+
+    final error = await _invoiceController.update(
+      invoiceId: invoiceId,
+      customerId: _selectedCustomerId ?? widget.existingInvoice!.customerId,
+      placeOfSupply: _selectedPlaceOfSupply,
+      invoiceDate: _formattedInvoiceDate,
+      paymentTerms: InvoiceFormController.termsToApiKey(_selectedTerms),
+      subject: _subjectController.text.trim(),
+      taxType: _isTaxInclusive ? 'inclusive' : 'exclusive',
+      customerNotes: _customerNotesController.text.trim(),
+      orderNumber: _orderNumberController.text.trim(),
+      lineItems: lineItemsPayload,
+    );
+
+    if (!mounted) return;
+    if (error == null) {
+      markClean();
+      ToastificationHelper.showSuccess(context, 'Invoice updated successfully.');
+      Navigator.pop(context);
+    } else {
+      ToastificationHelper.showError(context, error);
+    }
   }
 
   @override
@@ -172,30 +313,17 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                       onLeadingPressed: () =>
                           onPopInvokedWithResult(false, null),
                       actions: [
-                        AppBarElevatedButton(
+                      AppBarElevatedButton(
                           label: widget.isEditing ? 'UPDATE' : 'SAVE AS DRAFT',
-                          onPressed: () {
-                            appLog(
-                              widget.isEditing
-                                  ? '💾 Update tapped'
-                                  : '💾 Save as Draft tapped',
-                              name: 'NewInvoicePage',
-                            );
-                            if (_customerNameController.text.trim().isEmpty) {
-                              ToastificationHelper.showError(
-                                context,
-                                'Please select a customer before saving.',
-                              );
-                              return;
-                            }
-                            ToastificationHelper.showSuccess(
-                              context,
-                              widget.isEditing
-                                  ? 'Invoice updated successfully.'
-                                  : 'Invoice saved as draft.',
-                            );
-                            Navigator.pop(context);
-                          },
+                          onPressed: _invoiceController.isSaving
+                              ? null
+                              : () {
+                                  if (widget.isEditing) {
+                                    _updateInvoice();
+                                  } else {
+                                    _saveAsDraft();
+                                  }
+                                },
                         ),
                         SizedBox(width: Dimensions.width10),
                         AppBarIconButton(
@@ -210,6 +338,9 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                               context,
                               customerNameController: _customerNameController,
                               onResetForm: _resetForm,
+                              onSaveAndSend: _invoiceController.isSaving
+                                  ? null
+                                  : _saveAndSend,
                             );
                           },
                         ),
@@ -225,8 +356,33 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                           // Customer Information Card
                           InvoiceCustomerInfoCard(
                             customerNameController: _customerNameController,
-                            onClearCustomer: () =>
-                                setState(() => _customerNameController.clear()),
+                            onClearCustomer: () => setState(() {
+                              _customerNameController.clear();
+                              _selectedCustomerId = null;
+                            }),
+                            onCustomerNameTap: () async {
+                              final picked =
+                                  await Navigator.push<CustomerModel>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const _CustomerPickerPage(),
+                                ),
+                              );
+                              if (picked != null && mounted) {
+                                setState(() {
+                                  _selectedCustomerId = picked.id;
+                                  _customerNameController.text = picked.name;
+                                  if (_emailCommunications.isEmpty &&
+                                      picked.email != null &&
+                                      picked.email!.isNotEmpty) {
+                                    _emailCommunications
+                                        .add(picked.email!);
+                                  }
+                                });
+                                markDirty();
+                              }
+                            },
                             onAddressTap: () => ToastificationHelper.showInfo(
                               context,
                               'Select a customer to manage the address.',
@@ -426,6 +582,134 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                 ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lightweight in-page customer picker — shows the existing customers list
+// and pops with the selected CustomerModel.
+// ---------------------------------------------------------------------------
+
+class _CustomerPickerPage extends StatefulWidget {
+  const _CustomerPickerPage();
+
+  @override
+  State<_CustomerPickerPage> createState() => _CustomerPickerPageState();
+}
+
+class _CustomerPickerPageState extends State<_CustomerPickerPage> {
+  final CustomersListController _ctrl = CustomersListController();
+  final ScrollController _scroll = ScrollController();
+  final TextEditingController _search = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_refresh);
+    _scroll.addListener(_onScroll);
+    _ctrl.loadFirstPage();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    _ctrl.removeListener(_refresh);
+    _ctrl.dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  void _onScroll() {
+    if (_scroll.position.pixels >=
+        _scroll.position.maxScrollExtent - 300) {
+      _ctrl.loadNextPage();
+    }
+  }
+
+  void _onSearch(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+      () => _ctrl.loadFirstPage(search: _search.text.trim()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      appBar: AppBar(
+        backgroundColor: context.colors.card,
+        title: Text(
+          'Select Customer',
+          style: TextStyle(
+            fontSize: Dimensions.font16,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              Dimensions.width20,
+              0,
+              Dimensions.width20,
+              Dimensions.height10,
+            ),
+            child: TextField(
+              controller: _search,
+              onChanged: _onSearch,
+              decoration: InputDecoration(
+                hintText: 'Search customers…',
+                prefixIcon: const Icon(Icons.search_rounded),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Dimensions.radius15),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: context.colors.surfaceLight,
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: _ctrl.isLoading && _ctrl.customers.isEmpty
+          ? const CustomerListSkeleton()
+          : _ctrl.customers.isEmpty
+          ? const Center(child: Text('No customers found'))
+          : ListView.builder(
+              controller: _scroll,
+              padding: EdgeInsets.all(Dimensions.width20),
+              itemCount: _ctrl.customers.length +
+                  (_ctrl.isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index >= _ctrl.customers.length) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                  );
+                }
+                final customer = _ctrl.customers[index];
+                return Padding(
+                  padding: EdgeInsets.only(bottom: Dimensions.height10),
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, customer),
+                    child: CustomerCardWidget(customer: customer),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

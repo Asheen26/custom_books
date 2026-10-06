@@ -28,7 +28,7 @@ class InvoiceListItem extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => InvoiceDetailsPage(invoice: invoice),
+      builder: (context) => InvoiceDetailsPage(invoiceId: invoice.id),
         ),
       ),
     );

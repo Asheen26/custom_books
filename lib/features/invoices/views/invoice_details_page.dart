@@ -1,18 +1,21 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
+import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
-import 'package:custom_books/features/invoices/models/invoice_model.dart';
+import 'package:custom_books/core/widgets/custom_back_appbar.dart';
+import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
+import 'package:custom_books/features/invoices/controllers/invoice_detail_controller.dart';
 import 'package:custom_books/features/invoices/views/new_invoice_page.dart';
 import 'package:custom_books/features/invoices/widgets/invoice_details_tab_view.dart';
 import 'package:custom_books/features/invoices/widgets/invoice_header_card.dart';
 import 'package:flutter/material.dart';
-import 'package:custom_books/core/widgets/custom_back_appbar.dart';
-import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 
 class InvoiceDetailsPage extends StatefulWidget {
-  final InvoiceModel invoice;
+  /// The UUID of the invoice to load from the API.
+  final String invoiceId;
 
-  const InvoiceDetailsPage({super.key, required this.invoice});
+  const InvoiceDetailsPage({super.key, required this.invoiceId});
 
   @override
   State<InvoiceDetailsPage> createState() => _InvoiceDetailsPageState();
@@ -21,32 +24,41 @@ class InvoiceDetailsPage extends StatefulWidget {
 class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _isLoading = true;
+  final InvoiceDetailController _controller = InvoiceDetailController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _load();
+    _controller.addListener(_onControllerChanged);
+    _loadInvoice();
+    appLog('📄 InvoiceDetailsPage init: ${widget.invoiceId}',
+        name: 'InvoiceDetailsPage');
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     super.dispose();
   }
 
-  /// Simulates fetching details so the shimmer skeleton is shown briefly.
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadInvoice() async {
+    await _controller.load(widget.invoiceId);
     if (!mounted) return;
-    setState(() => _isLoading = false);
+    if (_controller.errorMessage != null) {
+      ToastificationHelper.showError(context, _controller.errorMessage!);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final invoice = widget.invoice;
+    final invoice = _controller.invoice;
 
     return Scaffold(
       backgroundColor: context.colors.background,
@@ -54,22 +66,26 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
         title: 'Invoice Details',
         backgroundColor: context.colors.card,
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.edit_rounded,
-              color: context.colors.textSecondary,
-              size: Dimensions.iconSize24 - 2,
+          if (invoice != null)
+            IconButton(
+              icon: Icon(
+                Icons.edit_rounded,
+                color: context.colors.textSecondary,
+                size: Dimensions.iconSize24 - 2,
+              ),
+              onPressed: () async {
+                appLog('✏️ Edit invoice tapped', name: 'InvoiceDetailsPage');
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        NewInvoicePage(existingInvoice: invoice),
+                  ),
+                );
+                // Refresh after editing
+                if (mounted) _loadInvoice();
+              },
             ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      NewInvoicePage(existingInvoice: widget.invoice),
-                ),
-              );
-            },
-          ),
           PopupMenuButton<String>(
             icon: Icon(
               Icons.more_vert_rounded,
@@ -144,8 +160,37 @@ class _InvoiceDetailsPageState extends State<InvoiceDetailsPage>
         ],
       ),
       body: SafeArea(
-        child: _isLoading
+        child: _controller.isLoading
             ? const DetailsPageSkeleton()
+            : invoice == null
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 48,
+                      color: context.colors.textTertiary,
+                    ),
+                    SizedBox(height: Dimensions.height15),
+                    Text(
+                      _controller.errorMessage ??
+                          'Invoice could not be loaded.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: Dimensions.font16 * 0.9,
+                        color: context.colors.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: Dimensions.height20),
+                    TextButton.icon(
+                      onPressed: _loadInvoice,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
             : Column(
                 children: [
                   // Header section
