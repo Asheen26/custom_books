@@ -22,6 +22,7 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
     required this.onPlaceOfSupplyChanged,
     required this.invoiceNumber,
     required this.onInvoiceSettingsTap,
+    this.onInvoiceNumberChanged,
     required this.orderNumberController,
     required this.invoiceDate,
     required this.onInvoiceDateSelected,
@@ -49,6 +50,7 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
   // Invoice number / order number
   final String invoiceNumber;
   final VoidCallback onInvoiceSettingsTap;
+  final ValueChanged<String>? onInvoiceNumberChanged;
   final TextEditingController orderNumberController;
 
   // Dates & terms
@@ -281,7 +283,9 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
                       child: Container(
                         padding: EdgeInsets.symmetric(
                           horizontal: Dimensions.width15,
-                          vertical: Dimensions.height15,
+                          vertical: invoiceNumber.isEmpty
+                              ? Dimensions.height10 / 2
+                              : Dimensions.height15,
                         ),
                         decoration: BoxDecoration(
                           color: context.colors.surfaceLight,
@@ -290,14 +294,33 @@ class InvoiceCustomerInfoCard extends StatelessWidget {
                           ),
                           border: Border.all(color: context.colors.border),
                         ),
-                        child: Text(
-                          invoiceNumber,
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.85,
-                            color: context.colors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: invoiceNumber.isEmpty
+                            ? TextField(
+                                onChanged: onInvoiceNumberChanged,
+                                style: TextStyle(
+                                  fontSize: Dimensions.font16 * 0.85,
+                                  color: context.colors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Enter invoice number',
+                                  hintStyle: TextStyle(
+                                    color: context.colors.textTertiary,
+                                    fontSize: Dimensions.font16 * 0.85,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              )
+                            : Text(
+                                invoiceNumber,
+                                style: TextStyle(
+                                  fontSize: Dimensions.font16 * 0.85,
+                                  color: context.colors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                     SizedBox(width: Dimensions.width10),

@@ -19,6 +19,7 @@ import 'package:custom_books/features/invoices/widgets/invoice_form_helpers.dart
 import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_tax_and_line_item_section.dart';
 import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_more_options_sheet.dart';
 import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_attachments_card.dart';
+import 'package:custom_books/features/invoices/widgets/new_invoice_page_widgets/invoice_number_settings_dialog.dart';
 import 'package:flutter/material.dart';
 
 class NewInvoicePage extends StatefulWidget {
@@ -405,11 +406,30 @@ class _NewInvoicePageState extends State<NewInvoicePage>
                             onPlaceOfSupplyChanged: (value) =>
                                 setState(() => _selectedPlaceOfSupply = value!),
                             invoiceNumber: _invoiceNumber,
-                            onInvoiceSettingsTap: () =>
-                                ToastificationHelper.showInfo(
-                                  context,
-                                  'Invoice number settings are coming soon.',
-                                ),
+                            onInvoiceNumberChanged: (value) =>
+                                setState(() => _invoiceNumber = value),
+                            onInvoiceSettingsTap: () async {
+                              final result =
+                                  await InvoiceNumberSettingsDialog.show(
+                                    context,
+                                    currentInvoiceNumber: _invoiceNumber,
+                                  );
+                              if (result == null || !mounted) return;
+                              setState(() {
+                                switch (result.mode) {
+                                  case InvoiceNumberMode.autoGenerate:
+                                  case InvoiceNumberMode.manualThisInvoice:
+                                    if (result.invoiceNumber != null) {
+                                      _invoiceNumber = result.invoiceNumber!;
+                                    }
+                                    break;
+                                  case InvoiceNumberMode.manualEachTime:
+                                    _invoiceNumber = '';
+                                    break;
+                                }
+                              });
+                              markDirty();
+                            },
                             orderNumberController: _orderNumberController,
                             invoiceDate: _invoiceDate,
                             onInvoiceDateSelected: (picked) =>
