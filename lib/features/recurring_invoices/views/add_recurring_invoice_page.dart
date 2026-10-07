@@ -10,7 +10,8 @@ import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:custom_books/features/recurring_invoices/models/recurring_invoice_model.dart';
-import 'package:custom_books/features/recurring_invoices/views/add_recurring_invoice_line_item_page.dart';
+import 'package:custom_books/core/line_item/add_line_item_page.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:flutter/material.dart';
 
 class AddRecurringInvoicePage extends StatefulWidget {
@@ -202,7 +203,22 @@ class _AddRecurringInvoicePageState extends State<AddRecurringInvoicePage>
     final result = await Navigator.push<Object>(
       context,
       MaterialPageRoute(
-        builder: (_) => const AddRecurringInvoiceLineItemPage(),
+        builder: (_) => AddLineItemPage<RecurringInvoiceLineItem>(
+          buildItem: (LineItemFormData data, String? existingId) =>
+              RecurringInvoiceLineItem(
+                id:
+                    existingId ??
+                    DateTime.now().microsecondsSinceEpoch.toString(),
+                itemId: data.itemId,
+                itemName: data.itemName,
+                description: data.description,
+                quantity: data.quantity,
+                rate: data.rate,
+                discount: data.discount,
+                discountIsPercent: data.discountIsPercent,
+                taxRate: data.taxRate,
+              ),
+        ),
       ),
     );
     if (!mounted || result == null) return;

@@ -11,7 +11,8 @@ import 'package:custom_books/features/delivery_challans/controllers/delivery_cha
 import 'package:custom_books/features/delivery_challans/controllers/delivery_challans_list_controller.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_model.dart';
 import 'package:custom_books/features/delivery_challans/models/delivery_challan_options_model.dart';
-import 'package:custom_books/features/delivery_challans/views/add_delivery_challan_line_item_page.dart';
+import 'package:custom_books/core/line_item/add_line_item_page.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
@@ -177,7 +178,24 @@ class _AddDeliveryChallanPageState extends State<AddDeliveryChallanPage>
   Future<void> _addLineItem() async {
     final result = await Navigator.push<Object>(
       context,
-      MaterialPageRoute(builder: (_) => const AddDeliveryChallanLineItemPage()),
+      MaterialPageRoute(
+        builder: (_) => AddLineItemPage<DeliveryChallanLineItem>(
+          buildItem: (LineItemFormData data, String? existingId) =>
+              DeliveryChallanLineItem(
+                id:
+                    existingId ??
+                    DateTime.now().microsecondsSinceEpoch.toString(),
+                itemId: data.itemId,
+                itemName: data.itemName,
+                description: data.description,
+                quantity: data.quantity,
+                rate: data.rate,
+                discount: data.discount,
+                discountIsPercent: data.discountIsPercent,
+                taxRate: data.taxRate,
+              ),
+        ),
+      ),
     );
     if (!mounted || result == null) return;
     if (result is DeliveryChallanLineItem) {

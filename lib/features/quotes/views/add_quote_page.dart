@@ -10,7 +10,8 @@ import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:custom_books/features/quotes/controllers/quote_form_controller.dart';
 import 'package:custom_books/features/quotes/models/quote_model.dart';
-import 'package:custom_books/features/quotes/views/add_quote_line_item_page.dart';
+import 'package:custom_books/core/line_item/add_line_item_page.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
@@ -144,10 +145,10 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
                   child: Text((c['name'] ?? '').substring(0, 1).toUpperCase()),
                 ),
                 title: Text(c['name'] ?? ''),
-                onTap: () => Navigator.pop(
-                  context,
-                  {'id': c['id']!, 'name': c['name']!},
-                ),
+                onTap: () => Navigator.pop(context, {
+                  'id': c['id']!,
+                  'name': c['name']!,
+                }),
               ),
             ),
             ListTile(
@@ -170,7 +171,25 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
   Future<void> _addLineItem() async {
     final result = await Navigator.push<Object>(
       context,
-      MaterialPageRoute(builder: (_) => const AddQuoteLineItemPage()),
+      MaterialPageRoute(
+        builder: (_) => AddLineItemPage<QuoteLineItem>(
+          buildItem: (LineItemFormData data, String? existingId) =>
+              QuoteLineItem(
+                id:
+                    existingId ??
+                    DateTime.now().microsecondsSinceEpoch.toString(),
+                itemId: data.itemId,
+                itemName: data.itemName,
+                description: data.description,
+                quantity: data.quantity,
+                rate: data.rate,
+                discount: data.discount,
+                discountIsPercent: data.discountIsPercent,
+                taxRate: data.taxRate,
+                amount: data.net,
+              ),
+        ),
+      ),
     );
     if (!mounted || result == null) return;
     if (result is QuoteLineItem) {
@@ -226,14 +245,16 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
         if (_reference.text.trim().isNotEmpty)
           'reference_number': _reference.text.trim(),
         'line_items': _lineItems
-            .map((item) => {
-                  if (item.id.isNotEmpty) 'line_id': item.id,
-                  'name': item.itemName,
-                  'quantity': item.quantity.toString(),
-                  'rate': item.rate.toStringAsFixed(2),
-                  if (item.description.isNotEmpty)
-                    'description': item.description,
-                })
+            .map(
+              (item) => {
+                if (item.id.isNotEmpty) 'line_id': item.id,
+                'name': item.itemName,
+                'quantity': item.quantity.toString(),
+                'rate': item.rate.toStringAsFixed(2),
+                if (item.description.isNotEmpty)
+                  'description': item.description,
+              },
+            )
             .toList(),
       };
       success = await _formController.update(widget.quote!.id, updateBody);
@@ -246,15 +267,19 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
         'tax_type': _taxInclusive ? 'inclusive' : 'exclusive',
         'customer_notes': _notes.text.trim(),
         'terms_and_conditions': _terms.text.trim(),
-        'action': status == QuoteStatus.sent ? 'save_and_send' : 'save_as_draft',
+        'action': status == QuoteStatus.sent
+            ? 'save_and_send'
+            : 'save_as_draft',
         'line_items': _lineItems
-            .map((item) => {
-                  'name': item.itemName,
-                  'quantity': item.quantity.toString(),
-                  'rate': item.rate.toStringAsFixed(2),
-                  if (item.description.isNotEmpty)
-                    'description': item.description,
-                })
+            .map(
+              (item) => {
+                'name': item.itemName,
+                'quantity': item.quantity.toString(),
+                'rate': item.rate.toStringAsFixed(2),
+                if (item.description.isNotEmpty)
+                  'description': item.description,
+              },
+            )
             .toList(),
         if (_reference.text.trim().isNotEmpty)
           'reference_number': _reference.text.trim(),
@@ -335,9 +360,7 @@ class _AddQuotePageState extends State<AddQuotePage> with UnsavedChangesMixin {
           onLeadingPressed: () => onPopInvokedWithResult(false, null),
           actions: [
             TextButton(
-              onPressed: _formController.isSaving
-                  ? null
-                  : () => _save(),
+              onPressed: _formController.isSaving ? null : () => _save(),
               child: Text(
                 _formController.isSaving ? 'SAVING…' : 'SAVE AS DRAFT',
                 style: TextStyle(

@@ -7,7 +7,8 @@ import 'package:custom_books/core/widgets/line_item_form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
 import 'package:custom_books/features/credit_notes/models/credit_note_model.dart';
-import 'package:custom_books/features/credit_notes/views/add_credit_note_line_item_page.dart';
+import 'package:custom_books/core/line_item/add_line_item_page.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_form_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
@@ -152,7 +153,22 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
     final result = await Navigator.push<Object>(
       context,
       MaterialPageRoute(
-        builder: (_) => const AddCreditNoteLineItemPage(),
+        builder: (_) => AddLineItemPage<CreditNoteLineItem>(
+          buildItem: (LineItemFormData data, String? existingId) =>
+              CreditNoteLineItem(
+                id:
+                    existingId ??
+                    DateTime.now().microsecondsSinceEpoch.toString(),
+                itemId: data.itemId,
+                itemName: data.itemName,
+                description: data.description,
+                quantity: data.quantity,
+                rate: data.rate,
+                discount: data.discount,
+                discountIsPercent: data.discountIsPercent,
+                taxRate: data.taxRate,
+              ),
+        ),
       ),
     );
     if (!mounted || result == null) return;
@@ -422,7 +438,10 @@ class _AddCreditNotePageState extends State<AddCreditNotePage>
                               children: [
                                 _totalRow(
                                   'Sub Total',
-                                  _lineItems.fold<double>(0, (s, i) => s + i.net),
+                                  _lineItems.fold<double>(
+                                    0,
+                                    (s, i) => s + i.net,
+                                  ),
                                 ),
                                 _totalRow(
                                   'Tax',

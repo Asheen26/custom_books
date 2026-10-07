@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/line_item/item_lookup_controller.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
@@ -9,35 +11,93 @@ import 'package:custom_books/core/widgets/form_widgets.dart';
 import 'package:custom_books/core/widgets/line_item_form_widgets.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/core/widgets/unsaved_changes_dialog.dart';
-import 'package:custom_books/features/inventory_adjustments/controllers/item_lookup_controller.dart';
-import 'package:custom_books/features/inventory_adjustments/models/line_item_model.dart';
-import 'package:custom_books/features/credit_notes/models/credit_note_model.dart';
 import 'package:flutter/material.dart';
 
-class AddCreditNoteLineItemPage extends StatefulWidget {
-  const AddCreditNoteLineItemPage({super.key});
+/// A generic Add / Edit Line Item page shared by invoices, sales orders,
+/// recurring invoices, credit notes, and delivery challans.
+///
+/// The caller provides a [buildItem] callback that converts the common
+/// [LineItemFormData] into its own feature-specific model.  The page pops
+/// with either:
+///  - A single `T` when the user taps **Save**.
+///  - A `List<T>` with one real item when the user taps **Save and New**
+///    (the caller should add the item then immediately re-open the page).
+///
+/// Pass [initialData] to enter **edit mode** — all fields are pre-filled and
+/// the app-bar title changes to "Edit Line Item".
+///
+/// Example (invoices):
+/// ```dart
+/// final result = await Navigator.push<Object>(
+///   context,
+///   MaterialPageRoute(
+///     builder: (_) => AddLineItemPage<InvoiceLineItem>(
+///       buildItem: (data, existingId) => InvoiceLineItem(
+///         id: existingId ?? DateTime.now().microsecondsSinceEpoch.toString(),
+///         itemId: data.itemId,
+///         itemName: data.itemName,
+///         description: data.description.isEmpty ? null : data.description,
+///         quantity: data.quantity,
+///         unit: '',
+///         rate: data.rate,
+///         amount: data.net,
+///         discount: data.discount > 0 ? data.discount : null,
+///         taxRate: data.taxRate > 0 ? data.taxRate : null,
+///         taxAmount: data.taxAmount > 0 ? data.taxAmount : null,
+///       ),
+///     ),
+///   ),
+/// );
+/// ```
+class AddLineItemPage<T> extends StatefulWidget {
+  /// Converts the completed form data into the caller's model type.
+  /// [existingId] is non-null when editing an existing item.
+  final T Function(LineItemFormData data, String? existingId) buildItem;
+
+  /// Pre-fill the form for edit mode.
+  final LineItemFormData? initialData;
+
+  /// The existing item's id — passed back to [buildItem] so the caller can
+  /// preserve the original id on edit.
+  final String? existingId;
+
+  /// Label shown in the appbar and success log.  Defaults to the feature name
+  /// inferred from [T], but can be overridden (e.g. 'Invoice').
+  final String? featureLabel;
+
+  const AddLineItemPage({
+    super.key,
+    required this.buildItem,
+    this.initialData,
+    this.existingId,
+    this.featureLabel,
+  });
 
   @override
-  State<AddCreditNoteLineItemPage> createState() =>
-      _AddCreditNoteLineItemPageState();
+  State<AddLineItemPage<T>> createState() => _AddLineItemPageState<T>();
 }
 
-class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
+class _AddLineItemPageState<T> extends State<AddLineItemPage<T>>
     with UnsavedChangesMixin {
+  // ── controllers ────────────────────────────────────────────────────────────
   final _item = TextEditingController();
   final _description = TextEditingController();
   final _quantity = TextEditingController(text: '1.00');
   final _rate = TextEditingController(text: '0.00');
   final _discount = TextEditingController();
-  InventoryItemLookup? _selectedItem;
+
+  // ── state ──────────────────────────────────────────────────────────────────
+  ItemLookupResult? _selectedItem;
   bool _discountIsPercent = true;
   double _taxRate = 0;
   bool _isLoading = true;
 
+  // ── lookup ─────────────────────────────────────────────────────────────────
   final ItemLookupController _lookupController = ItemLookupController();
   Timer? _debounce;
 
-  List<InventoryItemLookup> get _suggestions {
+  // ── computed ───────────────────────────────────────────────────────────────
+  List<ItemLookupResult> get _suggestions {
     if (_item.text.trim().isEmpty || _selectedItem != null) return [];
     return _lookupController.results;
   }
@@ -45,19 +105,45 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
   double get _gross =>
       (double.tryParse(_quantity.text) ?? 0) *
       (double.tryParse(_rate.text) ?? 0);
+
   double get _discountAmount {
-    final discount = double.tryParse(_discount.text) ?? 0;
-    return _discountIsPercent ? _gross * discount / 100 : discount;
+    final d = double.tryParse(_discount.text) ?? 0;
+    return _discountIsPercent ? _gross * d / 100 : d;
   }
 
   double get _net => (_gross - _discountAmount).clamp(0, double.infinity);
   double get _taxAmount => _net * _taxRate / 100;
 
+  // ── lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-    _load();
     _lookupController.addListener(_onLookupChanged);
+
+    final initial = widget.initialData;
+    if (initial != null) {
+      // Edit mode — pre-fill all fields immediately, skip loading delay.
+      _selectedItem = ItemLookupResult(
+        id: initial.itemId,
+        name: initial.itemName,
+        stockOnHand: 0,
+        imageUrl: initial.imageUrl,
+        costPrice: initial.rate,
+      );
+      _item.text = initial.itemName;
+      _description.text = initial.description;
+      _quantity.text = initial.quantity.toStringAsFixed(2);
+      _rate.text = initial.rate.toStringAsFixed(2);
+      if (initial.discount > 0) {
+        _discount.text = initial.discount.toStringAsFixed(2);
+      }
+      _discountIsPercent = initial.discountIsPercent;
+      _taxRate = initial.taxRate;
+      _isLoading = false;
+    } else {
+      _load();
+    }
+
     _item.addListener(markDirty);
     _description.addListener(markDirty);
     _quantity.addListener(markDirty);
@@ -83,6 +169,7 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
     super.dispose();
   }
 
+  // ── helpers ────────────────────────────────────────────────────────────────
   void _onLookupChanged() {
     if (mounted) setState(() {});
   }
@@ -109,10 +196,10 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
     setState(() {});
   }
 
-  void _selectItem(InventoryItemLookup apiItem) {
+  void _selectItem(ItemLookupResult apiItem) {
     appLog(
-      '📦 Credit Note item selected: ${apiItem.name}',
-      name: 'AddCreditNoteLineItem',
+      '📦 ${widget.featureLabel ?? T.toString()} item selected: ${apiItem.name}',
+      name: 'AddLineItemPage',
     );
     setState(() {
       _selectedItem = apiItem;
@@ -136,10 +223,11 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
     markDirty();
   }
 
-  CreditNoteLineItem? _buildItem() {
+  LineItemFormData? _validateAndBuild() {
     final name = _item.text.trim();
     final quantity = double.tryParse(_quantity.text) ?? 0;
     final rate = double.tryParse(_rate.text) ?? -1;
+
     if (_selectedItem == null || name.isEmpty || quantity <= 0 || rate < 0) {
       ToastificationHelper.showWarning(
         context,
@@ -147,10 +235,11 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
       );
       return null;
     }
-    return CreditNoteLineItem(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+
+    return LineItemFormData(
       itemId: _selectedItem!.id,
       itemName: name,
+      imageUrl: _selectedItem!.imageUrl,
       description: _description.text.trim(),
       quantity: quantity,
       rate: rate,
@@ -161,32 +250,32 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
   }
 
   void _save() {
-    final item = _buildItem();
-    if (item != null) {
-      markClean();
-      Navigator.pop(context, item);
-    }
+    final data = _validateAndBuild();
+    if (data == null) return;
+    markClean();
+    Navigator.pop(context, widget.buildItem(data, widget.existingId));
   }
 
   void _saveAndNew() {
-    final item = _buildItem();
-    if (item == null) return;
+    final data = _validateAndBuild();
+    if (data == null) return;
     markClean();
-    Navigator.pop(context, <CreditNoteLineItem>[
-      item,
-      const CreditNoteLineItem(id: '', itemName: '', quantity: 0, rate: 0),
-    ]);
+    // Pop with a single-element list — callers detect List<T> and re-open.
+    Navigator.pop(context, <T>[widget.buildItem(data, widget.existingId)]);
   }
 
+  // ── build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.initialData != null;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: onPopInvokedWithResult,
       child: Scaffold(
         backgroundColor: context.colors.background,
         appBar: CustomBackAppBar(
-          title: 'Add Line Item',
+          title: isEditing ? 'Edit Line Item' : 'Add Line Item',
           onLeadingPressed: () => onPopInvokedWithResult(false, null),
         ),
         body: SafeArea(
@@ -204,7 +293,7 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
                     children: [
                       const RequiredLabel(text: 'Item'),
                       SizedBox(height: Dimensions.height10 / 2),
-                      ItemSearchField<InventoryItemLookup>(
+                      ItemSearchField<ItemLookupResult>(
                         controller: _item,
                         isItemSelected: _selectedItem != null,
                         suggestions: _suggestions,
@@ -301,6 +390,7 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
     );
   }
 
+  // ── sub-widgets ────────────────────────────────────────────────────────────
   Widget _numberRow(
     String label,
     TextEditingController controller, {
@@ -345,7 +435,10 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [_discountOption('%', true), _discountOption('₹', false)],
+            children: [
+              _discountOption('%', true),
+              _discountOption('₹', false),
+            ],
           ),
         ),
       ],
@@ -428,27 +521,29 @@ class _AddCreditNoteLineItemPageState extends State<AddCreditNoteLineItemPage>
     );
   }
 
-  Widget _summaryRow(String label, double amount, {bool bold = false}) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Text(
-        label,
-        style: TextStyle(
-          fontSize: Dimensions.font16 * 0.8,
-          fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-          color: context.colors.textSecondary,
+  Widget _summaryRow(String label, double amount, {bool bold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Dimensions.font16 * 0.8,
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            color: context.colors.textSecondary,
+          ),
         ),
-      ),
-      Text(
-        '₹${amount.toStringAsFixed(2)}',
-        style: TextStyle(
-          fontSize: Dimensions.font16 * 0.85,
-          fontWeight: FontWeight.w700,
-          color: context.colors.textPrimary,
+        Text(
+          '₹${amount.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: Dimensions.font16 * 0.85,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _bottomActions() {
     return SafeArea(

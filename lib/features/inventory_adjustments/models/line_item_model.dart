@@ -1,20 +1,13 @@
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
+
+export 'package:custom_books/core/line_item/item_lookup_model.dart'
+    show ItemLookupResult;
+
 enum ModeOfAdjustment { quantity, value }
 
-class InventoryItemLookup {
-  final String id;
-  final String name;
-  final double stockOnHand;
-  final String? imageUrl;
-  final double costPrice;
-
-  const InventoryItemLookup({
-    required this.id,
-    required this.name,
-    required this.stockOnHand,
-    this.imageUrl,
-    this.costPrice = 0,
-  });
-}
+/// Alias kept for backward compatibility while callers are migrated.
+/// New code should use [ItemLookupResult] from core/line_item/ directly.
+typedef InventoryItemLookup = ItemLookupResult;
 
 class LineItem {
   final String id;

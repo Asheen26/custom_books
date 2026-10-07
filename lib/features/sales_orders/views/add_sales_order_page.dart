@@ -12,7 +12,8 @@ import 'package:custom_books/features/customers/views/add_customer_page.dart';
 import 'package:custom_books/features/customers/viewmodels/customers_list_viewmodel.dart';
 import 'package:custom_books/features/sales_orders/models/sales_order_model.dart';
 import 'package:custom_books/features/sales_orders/viewmodels/sales_orders_list_viewmodel.dart';
-import 'package:custom_books/features/sales_orders/views/add_sales_order_line_item_page.dart';
+import 'package:custom_books/core/line_item/add_line_item_page.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
@@ -374,7 +375,24 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
   Future<void> _addLineItem() async {
     final result = await Navigator.push<Object>(
       context,
-      MaterialPageRoute(builder: (_) => const AddSalesOrderLineItemPage()),
+      MaterialPageRoute(
+        builder: (_) => AddLineItemPage<SalesOrderLineItem>(
+          buildItem: (LineItemFormData data, String? existingId) =>
+              SalesOrderLineItem(
+                id:
+                    existingId ??
+                    DateTime.now().microsecondsSinceEpoch.toString(),
+                itemId: data.itemId,
+                itemName: data.itemName,
+                description: data.description,
+                quantity: data.quantity,
+                rate: data.rate,
+                discount: data.discount,
+                discountIsPercent: data.discountIsPercent,
+                taxRate: data.taxRate,
+              ),
+        ),
+      ),
     );
     if (!mounted || result == null) return;
     if (result is SalesOrderLineItem) {

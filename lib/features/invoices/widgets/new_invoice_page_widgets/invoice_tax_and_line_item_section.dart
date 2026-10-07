@@ -3,8 +3,9 @@ import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/form_widgets.dart';
+import 'package:custom_books/core/line_item/add_line_item_page.dart';
+import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:custom_books/features/invoices/models/invoice_model.dart';
-import 'package:custom_books/features/invoices/views/add_invoice_line_item_page.dart';
 import 'package:flutter/material.dart';
 
 class InvoiceTaxAndLineItemSection extends StatelessWidget {
@@ -31,7 +32,26 @@ class InvoiceTaxAndLineItemSection extends StatelessWidget {
     appLog('➕ Add Line Item tapped', name: 'NewInvoicePage');
     final result = await Navigator.push<Object>(
       context,
-      MaterialPageRoute(builder: (context) => const AddInvoiceLineItemPage()),
+      MaterialPageRoute(
+        builder: (context) => AddLineItemPage<InvoiceLineItem>(
+          buildItem: (LineItemFormData data, String? existingId) =>
+              InvoiceLineItem(
+                id:
+                    existingId ??
+                    DateTime.now().microsecondsSinceEpoch.toString(),
+                itemId: data.itemId,
+                itemName: data.itemName,
+                description: data.description.isEmpty ? null : data.description,
+                quantity: data.quantity,
+                unit: '',
+                rate: data.rate,
+                amount: data.net,
+                discount: data.discount > 0 ? data.discount : null,
+                taxRate: data.taxRate > 0 ? data.taxRate : null,
+                taxAmount: data.taxAmount > 0 ? data.taxAmount : null,
+              ),
+        ),
+      ),
     );
     if (!context.mounted || result == null) return;
     if (result is InvoiceLineItem) {
@@ -135,7 +155,7 @@ class InvoiceTaxAndLineItemSection extends StatelessWidget {
       ],
     );
   }
-  
+
   static Widget buildRadioOption(
     BuildContext context,
     String label,
