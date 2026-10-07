@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:custom_books/core/apptheme/apptheme.dart';
+import 'package:custom_books/core/enums/sort_direction.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/active_filter_banner.dart';
@@ -9,15 +11,15 @@ import 'package:custom_books/core/widgets/empty_state_widget.dart';
 import 'package:custom_books/core/widgets/filter_sheet.dart';
 import 'package:custom_books/core/widgets/generic_sort_sheet.dart';
 import 'package:custom_books/core/widgets/list_control_bar.dart';
+import 'package:custom_books/core/widgets/more_options_sheet.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/drawer/views/custom_drawer.dart';
+import 'package:custom_books/features/recurring_invoices/controllers/recurring_invoices_list_controller.dart';
 import 'package:custom_books/features/recurring_invoices/models/recurring_invoice_model.dart';
 import 'package:custom_books/features/recurring_invoices/views/add_recurring_invoice_page.dart';
 import 'package:custom_books/features/recurring_invoices/views/recurring_invoice_details_page.dart';
 import 'package:custom_books/features/recurring_invoices/widgets/recurring_invoice_page_widgets.dart';
-import 'package:custom_books/core/widgets/more_options_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:custom_books/core/enums/sort_direction.dart';
 
 class RecurringInvoicesPage extends StatefulWidget {
   const RecurringInvoicesPage({super.key});
@@ -27,102 +29,75 @@ class RecurringInvoicesPage extends StatefulWidget {
 }
 
 class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
+  final RecurringInvoicesListController _controller =
+      RecurringInvoicesListController();
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   int _selectedTab = 0; // 0: All, 1: Active, 2: Stopped
   bool _searchOpen = false;
-  bool _isLoading = true;
   RecurringInvoiceStatus? _statusFilter;
   RecurringInvoiceSortField _sortField = RecurringInvoiceSortField.createdTime;
   SortDirection _sortDirection = SortDirection.descending;
 
-  late List<RecurringInvoiceModel> _profiles;
-
   @override
   void initState() {
     super.initState();
-    _loadProfiles();
-    _profiles = [
-      RecurringInvoiceModel(
-        id: '1',
-        profileName: 'Monthly Retainer - Nandhu',
-        customerName: 'Nandhu',
-        frequency: RecurringFrequency.monthly,
-        startDate: DateTime(2026, 1, 1),
-        status: RecurringInvoiceStatus.active,
-        amount: 1500.00,
-        createdAt: DateTime(2026, 1, 1, 9, 0),
-        updatedAt: DateTime(2026, 1, 1, 9, 0),
-      ),
-      RecurringInvoiceModel(
-        id: '2',
-        profileName: 'Quarterly Support - Parthiv',
-        customerName: 'Parthiv Ajith',
-        frequency: RecurringFrequency.quarterly,
-        startDate: DateTime(2026, 2, 15),
-        status: RecurringInvoiceStatus.stopped,
-        amount: 4200.00,
-        createdAt: DateTime(2026, 2, 15, 11, 30),
-        updatedAt: DateTime(2026, 2, 15, 11, 30),
-      ),
-      RecurringInvoiceModel(
-        id: '3',
-        profileName: 'Weekly Cleaning - Aisha',
-        customerName: 'Aisha Traders',
-        frequency: RecurringFrequency.weekly,
-        startDate: DateTime(2026, 3, 3),
-        status: RecurringInvoiceStatus.active,
-        amount: 350.00,
-        createdAt: DateTime(2026, 3, 3, 8, 0),
-        updatedAt: DateTime(2026, 3, 3, 8, 0),
-      ),
-      RecurringInvoiceModel(
-        id: '4',
-        profileName: 'Annual License - Gulf Retail',
-        customerName: 'Gulf Retail LLC',
-        frequency: RecurringFrequency.yearly,
-        startDate: DateTime(2025, 12, 1),
-        status: RecurringInvoiceStatus.expired,
-        amount: 12000.00,
-        createdAt: DateTime(2025, 12, 1, 15, 0),
-        updatedAt: DateTime(2025, 12, 1, 15, 0),
-      ),
-    ];
+    _controller.addListener(_onControllerChanged);
+    _scrollController.addListener(_onScroll);
+    _loadFirstPage();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  /// Simulates fetching data so the shimmer skeleton is shown briefly.
-  Future<void> _loadProfiles() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
-  List<RecurringInvoiceModel> get _visibleProfiles {
-    final query = _searchController.text.trim().toLowerCase();
-    final list = _profiles.where((profile) {
-      if (_selectedTab == 1 &&
-          profile.status != RecurringInvoiceStatus.active) {
-        return false;
-      }
-      if (_selectedTab == 2 &&
-          profile.status != RecurringInvoiceStatus.stopped) {
-        return false;
-      }
-      if (_statusFilter != null && profile.status != _statusFilter) {
-        return false;
-      }
-      return query.isEmpty ||
-          profile.customerName.toLowerCase().contains(query) ||
-          profile.profileName.toLowerCase().contains(query);
-    }).toList();
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 300) {
+      _controller.loadNextPage();
+    }
+  }
 
+  /// Derives the API status string from the current tab + filter selection.
+  String? get _activeStatusParam {
+    // Explicit filter sheet selection takes precedence.
+    if (_statusFilter != null) return _statusFilter!.name;
+    // Tab shortcuts.
+    if (_selectedTab == 1) return RecurringInvoiceStatus.active.name;
+    if (_selectedTab == 2) return RecurringInvoiceStatus.stopped.name;
+    return null;
+  }
+
+  Future<void> _loadFirstPage() async {
+    await _controller.loadFirstPage(
+      status: _activeStatusParam,
+      search: _searchController.text.trim(),
+    );
+  }
+
+  Future<void> _refresh() => _loadFirstPage();
+
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), _loadFirstPage);
+  }
+
+  /// Client-side sort applied on top of the paginated API results.
+  List<RecurringInvoiceModel> get _sortedProfiles {
+    final list = List<RecurringInvoiceModel>.from(_controller.profiles);
     list.sort((a, b) {
       int result;
       switch (_sortField) {
@@ -141,7 +116,6 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
       }
       return _sortDirection == SortDirection.ascending ? result : -result;
     });
-
     return list;
   }
 
@@ -151,11 +125,14 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
       MaterialPageRoute(builder: (_) => const AddRecurringInvoicePage()),
     );
     if (result != null && mounted) {
-      setState(() => _profiles.insert(0, result));
-      ToastificationHelper.showSuccess(
-        context,
-        '${result.profileName} created successfully',
-      );
+      // Reload from the API so the new profile is shown with its real ID.
+      await _loadFirstPage();
+      if (mounted) {
+        ToastificationHelper.showSuccess(
+          context,
+          '${result.profileName} created successfully',
+        );
+      }
     }
   }
 
@@ -177,7 +154,7 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
           icon: Icons.refresh_rounded,
           title: 'Refresh',
           subtitle: 'Reload the latest recurring invoice profiles',
-          onTap: () => setState(() {}),
+          onTap: _refresh,
         ),
       ],
     );
@@ -193,7 +170,14 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
         options: const [null, ...RecurringInvoiceStatus.values],
         selectedValue: _statusFilter,
         labelBuilder: (status) => status?.label ?? 'All Statuses',
-        onSelected: (status) => setState(() => _statusFilter = status),
+        onSelected: (status) {
+          setState(() {
+            _statusFilter = status;
+            // Clear tab selection when an explicit filter is applied.
+            _selectedTab = 0;
+          });
+          _loadFirstPage();
+        },
       ),
     );
   }
@@ -218,27 +202,33 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleList = _visibleProfiles;
+    final profiles = _sortedProfiles;
+    final totalCount = _controller.totalCount;
 
     return Scaffold(
       backgroundColor: context.colors.background,
       drawer: const DrawerView(currentRoute: 'recurring_invoices'),
       floatingActionButton: CustomAddButton(onPressed: _addNewProfile),
       body: CustomScrollView(
+        controller: _scrollController,
         physics: const BouncingScrollPhysics(),
         slivers: [
           CustomSliverAppBar(
             title: 'Recurring Invoices',
-            subtitle:
-                '${_profiles.length} profile${_profiles.length == 1 ? '' : 's'}',
+            subtitle: '$totalCount profile${totalCount == 1 ? '' : 's'}',
             leadingType: AppBarLeadingType.menu,
             actions: [
               AppBarIconButton(
                 icon: _searchOpen ? Icons.close_rounded : Icons.search_rounded,
-                onPressed: () => setState(() {
-                  _searchOpen = !_searchOpen;
-                  if (!_searchOpen) _searchController.clear();
-                }),
+                onPressed: () {
+                  setState(() {
+                    _searchOpen = !_searchOpen;
+                    if (!_searchOpen) {
+                      _searchController.clear();
+                      _loadFirstPage();
+                    }
+                  });
+                },
               ),
               SizedBox(width: Dimensions.width10),
               AppBarIconButton(
@@ -256,15 +246,18 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
                   ListSearchField(
                     controller: _searchController,
                     hintText: 'Search by profile or customer',
-                    onChanged: (_) => setState(() {}),
+                    onChanged: _onSearchChanged,
                   ),
                 ListControlBar(
                   tabs: const ['All', 'Active', 'Stopped'],
                   selectedTab: _selectedTab,
-                  onTabSelected: (i) => setState(() {
-                    _selectedTab = i;
-                    _statusFilter = null;
-                  }),
+                  onTabSelected: (i) {
+                    setState(() {
+                      _selectedTab = i;
+                      _statusFilter = null;
+                    });
+                    _loadFirstPage();
+                  },
                   filterActive: _statusFilter != null,
                   onFilterTap: _openFilterSheet,
                   onSortTap: _openSortSheet,
@@ -272,26 +265,37 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
                 if (_statusFilter != null)
                   ActiveFilterBanner(
                     label: 'Status: ${_statusFilter!.label}',
-                    onClear: () => setState(() => _statusFilter = null),
+                    onClear: () {
+                      setState(() => _statusFilter = null);
+                      _loadFirstPage();
+                    },
                   ),
               ],
             ),
           ),
-          if (_isLoading)
+          if (_controller.isLoading)
             const SliverFillRemaining(
               hasScrollBody: true,
               child: DocumentListSkeleton(),
             )
+          else if (_controller.errorMessage != null && profiles.isEmpty)
+            SliverFillRemaining(
+              child: EmptyStateWidget(
+                icon: Icons.error_outline_rounded,
+                title: 'Something went wrong',
+                subtitle: _controller.errorMessage!,
+              ),
+            )
           else
             SliverFillRemaining(
-              child: visibleList.isEmpty
+              child: profiles.isEmpty
                   ? const EmptyStateWidget(
                       icon: Icons.autorenew_rounded,
                       title: 'No recurring invoices found',
                       subtitle: 'Tap the + button to create a new profile.',
                     )
                   : RefreshIndicator(
-                      onRefresh: _loadProfiles,
+                      onRefresh: _refresh,
                       child: ListView.builder(
                         padding: EdgeInsets.fromLTRB(
                           Dimensions.width20,
@@ -302,18 +306,32 @@ class _RecurringInvoicesPageState extends State<RecurringInvoicesPage> {
                         physics: const AlwaysScrollableScrollPhysics(
                           parent: BouncingScrollPhysics(),
                         ),
-                        itemCount: visibleList.length,
-                        itemBuilder: (context, index) => RecurringInvoiceTile(
-                          profile: visibleList[index],
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RecurringInvoiceDetailsPage(
-                                profile: visibleList[index],
+                        // +1 for the optional load-more indicator at the bottom.
+                        itemCount:
+                            profiles.length +
+                            (_controller.isLoadingMore ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == profiles.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: CircularProgressIndicator.adaptive(),
+                              ),
+                            );
+                          }
+                          return RecurringInvoiceTile(
+                            profile: profiles[index],
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    RecurringInvoiceDetailsPage(
+                                      profile: profiles[index],
+                                    ),
                               ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ),
             ),
