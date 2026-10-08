@@ -53,6 +53,40 @@ class VendorModel {
     required this.updatedAt,
   });
 
+  factory VendorModel.fromJson(Map<String, dynamic> json) {
+    return VendorModel(
+      id: (json['vendor_id'] ?? json['id'] ?? '').toString(),
+      displayName: (json['display_name'] ?? '').toString(),
+      companyName: _nullIfBlank(json['company_name']) ?? '',
+      email: _nullIfBlank(json['email']) ?? '',
+      phone: _nullIfBlank(json['phone']) ?? '',
+      payables: _toDouble(json['payables']),
+      unusedCredits: _toDouble(json['unused_credits']),
+      status: (json['status']?.toString().toLowerCase() == 'active')
+          ? VendorStatus.active
+          : VendorStatus.inactive,
+      createdAt: _toDate(json['created_at']) ?? DateTime.now(),
+      updatedAt: _toDate(json['updated_at']) ?? DateTime.now(),
+    );
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0.0;
+  }
+
+  static String? _nullIfBlank(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString().trim();
+    return str.isEmpty ? null : str;
+  }
+
+  static DateTime? _toDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
   VendorModel copyWith({
     String? id,
     String? displayName,
