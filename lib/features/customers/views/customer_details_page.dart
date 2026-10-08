@@ -200,8 +200,9 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
         child: _isLoading
             ? const DetailsPageSkeleton(
                 headerStyle: DetailsHeaderStyle.twoMetric,
-                tabStyle: DetailsTabStyle.underline,
+                tabStyle: DetailsTabStyle.pill,
                 tabCount: 3,
+                showTotalsCard: false,
               )
             : CustomScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -340,35 +341,59 @@ class _CustomerDetailsPageState extends State<CustomerDetailsPage>
 
                   SliverToBoxAdapter(
                     child: Container(
-                      decoration: BoxDecoration(
-                        color: context.colors.card,
-                        border: Border(
-                          bottom: BorderSide(
-                            color: context.colors.border,
-                            width: 1,
+                      color: context.colors.background,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: Dimensions.width20,
+                        vertical: Dimensions.height10,
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: context.colors.surfaceLight,
+                          borderRadius: BorderRadius.circular(
+                            Dimensions.radius30,
                           ),
                         ),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        labelColor: AppColors.primary,
-                        unselectedLabelColor: context.colors.textSecondary,
-                        labelStyle: TextStyle(
-                          fontSize: Dimensions.font16 * 0.8,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
+                        child: TabBar(
+                          controller: _tabController,
+                          indicator: BoxDecoration(
+                            color: context.colors.card,
+                            borderRadius: BorderRadius.circular(
+                              Dimensions.radius30,
+                            ),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.08,
+                                ),
+                                blurRadius: Dimensions.radius15 * 0.53,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          labelColor: AppColors.primary,
+                          unselectedLabelColor: context.colors.textSecondary,
+                          labelStyle: TextStyle(
+                            fontSize: Dimensions.font16 * 0.72,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                          unselectedLabelStyle: TextStyle(
+                            fontSize: Dimensions.font16 * 0.72,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          dividerColor: Colors.transparent,
+                          padding: EdgeInsets.all(Dimensions.width10 / 2),
+                          tabs: const [
+                            Tab(text: 'DETAILS'),
+                            Tab(text: 'TRANSACTIONS'),
+                            Tab(text: 'COMMENTS'),
+                          ],
                         ),
-                        unselectedLabelStyle: TextStyle(
-                          fontSize: Dimensions.font16 * 0.8,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        indicatorColor: AppColors.primary,
-                        indicatorWeight: 3,
-                        tabs: const [
-                          Tab(text: 'DETAILS'),
-                          Tab(text: 'TRANSACTIONS'),
-                          Tab(text: 'COMMENTS'),
-                        ],
                       ),
                     ),
                   ),
