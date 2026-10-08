@@ -5,14 +5,10 @@ import 'package:flutter/material.dart';
 
 /// A simple comment entry that lives only in memory for this session.
 class _CommentEntry {
-  _CommentEntry({
-    required this.text,
-    required this.timestamp,
-    this.author = 'trial01@gmail.com',
-  });
+  _CommentEntry({required this.text, required this.timestamp});
   final String text;
   final DateTime timestamp;
-  final String author;
+  static const String author = 'trial01@gmail.com';
 }
 
 class CommentsTab extends StatefulWidget {
@@ -82,7 +78,7 @@ class _CommentsTabState extends State<CommentsTab> {
                     vertical: Dimensions.height15,
                   ),
                   itemCount: _comments.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                       SizedBox(height: Dimensions.height10),
                   itemBuilder: (context, index) {
                     final comment = _comments[index];
@@ -238,7 +234,7 @@ class _CommentBubble extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      comment.author,
+                      _CommentEntry.author,
                       style: TextStyle(
                         fontSize: Dimensions.font16 * 0.7,
                         color: context.colors.textSecondary,
