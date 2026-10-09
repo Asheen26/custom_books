@@ -1,6 +1,40 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:flutter/material.dart';
 
+// ── Line Item ──────────────────────────────────────────────────────────────────
+
+class PurchaseOrderLineItem {
+  final String id;
+  final String itemId;
+  final String itemName;
+  final String description;
+  final double quantity;
+  final double rate;
+  final double discount;
+  final bool discountIsPercent;
+  final double taxRate;
+
+  const PurchaseOrderLineItem({
+    required this.id,
+    this.itemId = '',
+    required this.itemName,
+    this.description = '',
+    required this.quantity,
+    required this.rate,
+    this.discount = 0,
+    this.discountIsPercent = true,
+    this.taxRate = 0,
+  });
+
+  double get gross => quantity * rate;
+  double get discountAmount =>
+      discountIsPercent ? gross * discount / 100 : discount;
+  double get net => (gross - discountAmount).clamp(0, double.infinity);
+  double get taxAmount => net * taxRate / 100;
+}
+
+// ── Enums ──────────────────────────────────────────────────────────────────────
+
 enum PurchaseOrderStatus { draft, issued, billed, cancelled }
 
 extension PurchaseOrderStatusLabel on PurchaseOrderStatus {
@@ -47,7 +81,10 @@ class PurchaseOrderModel {
   final DateTime orderDate;
   final DateTime? expectedDeliveryDate;
   final PurchaseOrderStatus status;
+  final List<PurchaseOrderLineItem> lineItems;
   final double total;
+  final String customerNotes;
+  final String termsAndConditions;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -59,7 +96,10 @@ class PurchaseOrderModel {
     required this.orderDate,
     this.expectedDeliveryDate,
     this.status = PurchaseOrderStatus.draft,
+    this.lineItems = const [],
     this.total = 0,
+    this.customerNotes = '',
+    this.termsAndConditions = '',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -72,7 +112,10 @@ class PurchaseOrderModel {
     DateTime? orderDate,
     DateTime? expectedDeliveryDate,
     PurchaseOrderStatus? status,
+    List<PurchaseOrderLineItem>? lineItems,
     double? total,
+    String? customerNotes,
+    String? termsAndConditions,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -84,7 +127,10 @@ class PurchaseOrderModel {
       orderDate: orderDate ?? this.orderDate,
       expectedDeliveryDate: expectedDeliveryDate ?? this.expectedDeliveryDate,
       status: status ?? this.status,
+      lineItems: lineItems ?? this.lineItems,
       total: total ?? this.total,
+      customerNotes: customerNotes ?? this.customerNotes,
+      termsAndConditions: termsAndConditions ?? this.termsAndConditions,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
