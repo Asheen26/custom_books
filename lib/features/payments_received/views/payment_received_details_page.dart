@@ -1,23 +1,20 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
-import 'package:custom_books/core/utils/date_formatter.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
-import 'package:custom_books/core/widgets/detail_row.dart';
+import 'package:custom_books/core/widgets/custom_back_appbar.dart';
+import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
+import 'package:custom_books/features/customers/widgets/customer_details_page_widgets/comments_tab.dart';
 import 'package:custom_books/features/payments_received/controllers/payment_received_detail_controller.dart';
 import 'package:custom_books/features/payments_received/models/payment_received_model.dart';
 import 'package:custom_books/features/payments_received/models/payments_received_options_model.dart';
 import 'package:custom_books/features/payments_received/views/add_payment_received_page.dart';
+import 'package:custom_books/features/payments_received/widgets/payment_received_details_header.dart';
+import 'package:custom_books/features/payments_received/widgets/payment_received_details_tab.dart';
 import 'package:flutter/material.dart';
-import 'package:custom_books/core/widgets/custom_back_appbar.dart';
-import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 
 class PaymentReceivedDetailsPage extends StatefulWidget {
-  /// Lightweight model passed from the list page — used to seed the UI
-  /// immediately while the full detail fetch runs in the background.
   final PaymentReceivedModel payment;
-
-  /// Actions list from the options API — drives the popup menu.
   final List<PaymentReceivedAction> actions;
 
   const PaymentReceivedDetailsPage({
@@ -41,19 +38,19 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _ctrl = PaymentReceivedDetailController();
-    _ctrl.addListener(_onCtrlUpdate);
+    _ctrl.addListener(_rebuild);
     _loadPayment();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _ctrl.removeListener(_onCtrlUpdate);
+    _ctrl.removeListener(_rebuild);
     _ctrl.dispose();
     super.dispose();
   }
 
-  void _onCtrlUpdate() {
+  void _rebuild() {
     if (mounted) setState(() {});
   }
 
@@ -64,8 +61,6 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
       ToastificationHelper.showError(context, _ctrl.errorMessage!);
     }
   }
-
-  // ── action helpers ────────────────────────────────────────────────────────
 
   String _actionLabel(String key) {
     for (final a in widget.actions) {
@@ -92,30 +87,14 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
         return Icons.email_outlined;
       case 'void':
         return Icons.block_rounded;
-      case 'apply':
-        return Icons.link_rounded;
-      case 'unapply':
-        return Icons.link_off_rounded;
-      case 'history':
-        return Icons.history_rounded;
-      case 'change_template':
-        return Icons.dashboard_customize_outlined;
-      case 'export':
-        return Icons.file_download_outlined;
-      case 'refresh':
-        return Icons.refresh_rounded;
       default:
         return Icons.arrow_forward_ios_rounded;
     }
   }
 
-  // ── build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    // Use the full detail model once loaded, otherwise fall back to the seed.
     final payment = _ctrl.payment ?? widget.payment;
-    const statusColor = AppColors.success;
 
     return Scaffold(
       backgroundColor: context.colors.background,
@@ -175,7 +154,7 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
                     context,
                     '${payment.paymentNumber} deleted successfully.',
                   );
-                  Navigator.pop(context, true); // signal list to refresh
+                  Navigator.pop(context, true);
                 } else {
                   ToastificationHelper.showError(context, error);
                 }
@@ -184,7 +163,7 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
                   context,
                   title: 'Void Payment',
                   message:
-                      'Are you sure you want to void ${payment.paymentNumber}? This action cannot be undone.',
+                      'Are you sure you want to void ${payment.paymentNumber}?',
                 );
                 if (!confirmed || !context.mounted) return;
                 final error = await _ctrl.voidPayment(payment.id);
@@ -192,15 +171,12 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
                 if (error == null) {
                   ToastificationHelper.showSuccess(
                     context,
-                    _ctrl.payment != null
-                        ? '${_ctrl.payment!.paymentNumber} has been voided.'
-                        : '${payment.paymentNumber} has been voided.',
+                    '${payment.paymentNumber} has been voided.',
                   );
                 } else {
                   ToastificationHelper.showError(context, error);
                 }
               } else if (key == 'edit') {
-                if (!context.mounted) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -215,8 +191,6 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
               }
             },
             itemBuilder: (context) {
-              // 'edit' and 'email' are dedicated IconButtons; 'apply', 'unapply',
-              // 'history', 'change_template' are hidden until their APIs are connected.
               const hiddenKeys = {
                 'edit',
                 'email',
@@ -241,11 +215,8 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
                         path: '',
                       ),
                     ];
-              final items = rawItems;
-
-              return items.map((action) {
-                final bool isDanger =
-                    action.key == 'delete' || action.key == 'void';
+              return rawItems.map((action) {
+                final isDanger = action.key == 'delete' || action.key == 'void';
                 return PopupMenuItem<String>(
                   value: action.key,
                   child: Row(
@@ -282,147 +253,16 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
             ? const DetailsPageSkeleton()
             : Column(
                 children: [
-                  // ── Header ────────────────────────────────────────────────
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(Dimensions.width20),
-                    decoration: BoxDecoration(
-                      color: context.colors.card,
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x08000000),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Date',
-                              style: TextStyle(
-                                fontSize: Dimensions.font16 * 0.7,
-                                color: context.colors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            // Status badge — driven by API receipt_status_label
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: Dimensions.width10 + 2,
-                                vertical: Dimensions.height10 * 0.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(
-                                  Dimensions.radius30,
-                                ),
-                              ),
-                              child: Text(
-                                payment.receiptStatusLabel.isNotEmpty
-                                    ? payment.receiptStatusLabel
-                                    : 'PAID',
-                                style: TextStyle(
-                                  fontSize: Dimensions.font16 * 0.62,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.6,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: Dimensions.height10 / 2.5),
-                        Text(
-                          payment.paymentDateLabel.isNotEmpty
-                              ? payment.paymentDateLabel
-                              : formatDate(payment.paymentDate),
-                          style: TextStyle(
-                            fontSize: Dimensions.font20 * 0.95,
-                            fontWeight: FontWeight.w800,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: Dimensions.height20),
-                        Text(
-                          payment.customerName,
-                          style: TextStyle(
-                            fontSize: Dimensions.font20 * 0.95,
-                            fontWeight: FontWeight.w800,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: Dimensions.height10 / 2.5),
-                        Text(
-                          payment.paymentNumber,
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.85,
-                            color: context.colors.textSecondary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  PaymentReceivedDetailsHeader(payment: payment),
                   SizedBox(height: Dimensions.height15),
-
-                  // ── Tab bar ───────────────────────────────────────────────
-                  Container(
-                    margin: EdgeInsets.symmetric(
-                      horizontal: Dimensions.width20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceLight,
-                      borderRadius: BorderRadius.circular(Dimensions.radius30),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicator: BoxDecoration(
-                        color: context.colors.card,
-                        borderRadius: BorderRadius.circular(
-                          Dimensions.radius30,
-                        ),
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      labelColor: AppColors.primary,
-                      unselectedLabelColor: context.colors.textSecondary,
-                      labelStyle: TextStyle(
-                        fontSize: Dimensions.font16 * 0.72,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                      ),
-                      dividerColor: Colors.transparent,
-                      padding: EdgeInsets.all(Dimensions.width10 / 2),
-                      tabs: const [
-                        Tab(text: 'DETAILS'),
-                        Tab(text: 'COMMENTS & HISTORY'),
-                      ],
-                    ),
-                  ),
+                  _pillTabBar(),
                   SizedBox(height: Dimensions.height15),
-
-                  // ── Tab content ───────────────────────────────────────────
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
                       children: [
-                        _buildDetailsTab(payment),
-                        _buildCommentsTab(),
+                        PaymentReceivedDetailsTab(payment: payment),
+                        const CommentsTab(),
                       ],
                     ),
                   ),
@@ -432,185 +272,44 @@ class _PaymentReceivedDetailsPageState extends State<PaymentReceivedDetailsPage>
     );
   }
 
-  // ── Details tab ───────────────────────────────────────────────────────────
-
-  Widget _buildDetailsTab(PaymentReceivedModel payment) {
-    final summary = payment.amountSummary;
-
-    String fmt(double v) =>
-        '${payment.currency.isNotEmpty ? payment.currency : '₹'} ${v.toStringAsFixed(2)}';
-
-    return ListView(
-      padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        // ── Core fields card ──────────────────────────────────────────
-        _card(
-          children: [
-            DetailRow(label: 'Payment Mode:', value: payment.mode.label),
-            SizedBox(height: Dimensions.height15),
-            DetailRow(
-              label: 'Reference#:',
-              value: payment.referenceNumber.isEmpty
-                  ? '-'
-                  : payment.referenceNumber,
-            ),
-            SizedBox(height: Dimensions.height15),
-            DetailRow(
-              label: 'Status:',
-              value: payment.statusLabel.isNotEmpty
-                  ? payment.statusLabel
-                  : payment.status,
-            ),
-            SizedBox(height: Dimensions.height15),
-            DetailRow(
-              label: 'Applied to Invoices:',
-              value: payment.invoiceNumbers.isEmpty
-                  ? 'Unapplied'
-                  : payment.invoiceNumbers.join(', '),
-            ),
-            if (payment.notes.isNotEmpty) ...[
-              SizedBox(height: Dimensions.height15),
-              DetailRow(label: 'Notes:', value: payment.notes),
-            ],
-          ],
-        ),
-        SizedBox(height: Dimensions.height15),
-
-        // ── Amount summary card ───────────────────────────────────────
-        _card(
-          children: [
-            _sectionTitle('Amount Summary'),
-            SizedBox(height: Dimensions.height15),
-            DetailRow(
-              label: 'Amount Received:',
-              value: fmt(summary.amountReceived),
-            ),
-            if (summary.bankCharges > 0) ...[
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Bank Charges:',
-                value: fmt(summary.bankCharges),
-              ),
-            ],
-            SizedBox(height: Dimensions.height15),
-            DetailRow(
-              label: 'Used for Payments:',
-              value: fmt(summary.amountUsedForPayments),
-            ),
-            SizedBox(height: Dimensions.height15),
-            DetailRow(
-              label: 'Amount Refunded:',
-              value: fmt(summary.amountRefunded),
-            ),
-            SizedBox(height: Dimensions.height15),
-            const Divider(height: 1),
-            SizedBox(height: Dimensions.height15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Amount in Excess:',
-                  style: TextStyle(
-                    fontSize: Dimensions.font16 * 0.78,
-                    color: context.colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  fmt(summary.amountInExcess),
-                  style: TextStyle(
-                    fontSize: Dimensions.font16 * 0.95,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.success,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        SizedBox(height: Dimensions.height30),
-      ],
-    );
-  }
-
-  // ── Comments tab ──────────────────────────────────────────────────────────
-
-  Widget _buildCommentsTab() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(Dimensions.width20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: EdgeInsets.all(Dimensions.width20),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.07),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.history_rounded,
-                size: Dimensions.iconSize24 * 2,
-                color: AppColors.primary,
-              ),
-            ),
-            SizedBox(height: Dimensions.height20),
-            Text(
-              'No comments or history yet',
-              style: TextStyle(
-                fontSize: Dimensions.font16 * 0.95,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textPrimary,
-              ),
-            ),
-            SizedBox(height: Dimensions.height10),
-            Text(
-              'Comments and activity history\nwill appear here',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: Dimensions.font16 * 0.8,
-                color: context.colors.textSecondary,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  Widget _card({required List<Widget> children}) {
+  Widget _pillTabBar() {
     return Container(
-      padding: EdgeInsets.all(Dimensions.width20),
+      margin: EdgeInsets.symmetric(horizontal: Dimensions.width20),
       decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(Dimensions.radius15),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+        color: context.colors.surfaceLight,
+        borderRadius: BorderRadius.circular(Dimensions.radius30),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(Dimensions.radius30),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            width: 1.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: AppColors.primary,
+        unselectedLabelColor: context.colors.textSecondary,
+        labelStyle: TextStyle(
+          fontSize: Dimensions.font16 * 0.72,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
+        dividerColor: Colors.transparent,
+        padding: EdgeInsets.all(Dimensions.width10 / 2),
+        tabs: const [
+          Tab(text: 'DETAILS'),
+          Tab(text: 'COMMENTS & HISTORY'),
         ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: Dimensions.font16 * 0.78,
-        fontWeight: FontWeight.w800,
-        color: context.colors.textSecondary,
-        letterSpacing: 0.4,
       ),
     );
   }

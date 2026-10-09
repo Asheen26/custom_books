@@ -1,22 +1,21 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
-import 'package:custom_books/core/utils/date_formatter.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
-import 'package:custom_books/core/widgets/detail_row.dart';
-import 'package:custom_books/features/inventory_adjustments/controllers/adjustment_comments_controller.dart';
-import 'package:custom_books/features/inventory_adjustments/controllers/inventory_adjustment_detail_controller.dart';
-import 'package:custom_books/features/inventory_adjustments/models/adjustment_comment_model.dart';
-import 'package:custom_books/features/inventory_adjustments/models/inventory_adjustments_model.dart';
-import 'package:custom_books/features/inventory_adjustments/views/add_adjustment_page.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
+import 'package:custom_books/features/inventory_adjustments/controllers/adjustment_comments_controller.dart';
+import 'package:custom_books/features/inventory_adjustments/controllers/inventory_adjustment_detail_controller.dart';
+import 'package:custom_books/features/inventory_adjustments/models/inventory_adjustments_model.dart';
+import 'package:custom_books/features/inventory_adjustments/views/add_adjustment_page.dart';
+import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_comments_tab.dart';
+import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_details_header.dart';
+import 'package:custom_books/features/inventory_adjustments/widgets/adjustment_details_tab.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 
 class AdjustmentDetailsPage extends StatefulWidget {
   final InventoryAdjustment adjustment;
-
   const AdjustmentDetailsPage({super.key, required this.adjustment});
 
   @override
@@ -31,15 +30,10 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
   late final AdjustmentCommentsController _commentsController =
       AdjustmentCommentsController(widget.adjustment.id);
   final TextEditingController _commentInputController = TextEditingController();
-
-  // Attachments are not yet returned by the API.
   final List<PlatformFile> _attachments = [];
 
-  /// The adjustment currently displayed: fetched detail if available,
-  /// otherwise the list item passed in.
   InventoryAdjustment get _adjustment =>
       _controller.adjustment ?? widget.adjustment;
-
   bool get _isLoading => _controller.isLoading;
 
   @override
@@ -47,21 +41,33 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _controller.seed(widget.adjustment);
-    _controller.addListener(_onControllerChanged);
-    _commentsController.addListener(_onControllerChanged);
+    _controller.addListener(_rebuild);
+    _commentsController.addListener(_rebuild);
     _load();
     _commentsController.load();
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onControllerChanged);
+    _controller.removeListener(_rebuild);
     _controller.dispose();
-    _commentsController.removeListener(_onControllerChanged);
+    _commentsController.removeListener(_rebuild);
     _commentsController.dispose();
     _commentInputController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _load() async {
+    await _controller.load(widget.adjustment.id);
+    if (!mounted) return;
+    if (_controller.errorMessage != null) {
+      ToastificationHelper.showError(context, _controller.errorMessage!);
+    }
   }
 
   Future<void> _submitComment() async {
@@ -80,192 +86,122 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
     }
   }
 
-  void _onControllerChanged() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _load() async {
-    await _controller.load(widget.adjustment.id);
-    if (!mounted) return;
-    if (_controller.errorMessage != null) {
-      ToastificationHelper.showError(context, _controller.errorMessage!);
-    }
-  }
-
   void _showAttachmentsDialog() {
     showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (dialogCtx) {
-        return Dialog(
-          backgroundColor: context.colors.card,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Dimensions.radius20),
-          ),
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: Dimensions.width20,
-            vertical: Dimensions.height45 * 1.5,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Padding(
-                padding: EdgeInsets.all(Dimensions.width20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Attachments',
-                        style: TextStyle(
-                          fontSize: Dimensions.font20 * 0.95,
-                          fontWeight: FontWeight.w800,
-                          color: context.colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(dialogCtx),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        size: Dimensions.iconSize24,
-                        color: context.colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Divider(height: 1, color: context.colors.border),
-
-              // Attachment preview
-              if (_attachments.isNotEmpty)
-                Flexible(
-                  child: Container(
-                    margin: EdgeInsets.all(Dimensions.width20),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceLight,
-                      borderRadius: BorderRadius.circular(Dimensions.radius15),
-                      border: Border.all(color: context.colors.border),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(Dimensions.radius15),
-                      child: Image.asset(
-                        'assets/images/placeholder_attachment.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => Container(
-                          height: Dimensions.height80 * 3.75,
-                          color: context.colors.surfaceLight,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.insert_drive_file_outlined,
-                                  size: Dimensions.iconSize24 * 2,
-                                  color: context.colors.textSecondary,
-                                ),
-                                SizedBox(height: Dimensions.height10),
-                                Text(
-                                  _attachments.first.name,
-                                  style: TextStyle(
-                                    fontSize: Dimensions.font16 * 0.85,
-                                    color: context.colors.textSecondary,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Action buttons
-              Padding(
-                padding: EdgeInsets.all(Dimensions.width20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _actionButton(
-                      icon: Icons.download_rounded,
-                      onTap: () {
-                        ToastificationHelper.showInfo(
-                          context,
-                          'Downloading attachment is coming soon.',
-                        );
-                      },
-                    ),
-                    _actionButton(
-                      icon: Icons.delete_outline_rounded,
-                      onTap: () {
-                        ToastificationHelper.showInfo(
-                          context,
-                          'Removing attachments is coming soon.',
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              // Add attachment FAB
-              Padding(
-                padding: EdgeInsets.only(
-                  right: Dimensions.width20,
-                  bottom: Dimensions.height20,
-                ),
-                child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: FloatingActionButton(
-                    onPressed: () async {
-                      final result = await FilePicker.platform.pickFiles();
-                      if (result == null || result.files.isEmpty) return;
-                      setState(() => _attachments.addAll(result.files));
-                      if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                      if (!mounted) return;
-                      ToastificationHelper.showSuccess(
-                        context,
-                        '${result.files.length} attachment(s) added.',
-                      );
-                    },
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(
-                      Icons.attach_file_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _actionButton({required IconData icon, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(Dimensions.radius15),
-      child: Container(
-        padding: EdgeInsets.all(Dimensions.width15),
-        decoration: BoxDecoration(
-          color: context.colors.surfaceLight,
-          borderRadius: BorderRadius.circular(Dimensions.radius15),
-          border: Border.all(color: context.colors.border),
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: context.colors.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Dimensions.radius20),
         ),
-        child: Icon(
-          icon,
-          size: Dimensions.iconSize24,
-          color: context.colors.textPrimary,
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: Dimensions.width20,
+          vertical: Dimensions.height45 * 1.5,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(Dimensions.width20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Attachments',
+                      style: TextStyle(
+                        fontSize: Dimensions.font20 * 0.95,
+                        fontWeight: FontWeight.w800,
+                        color: context.colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(dialogCtx),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: Dimensions.iconSize24,
+                      color: context.colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: context.colors.border),
+            Padding(
+              padding: EdgeInsets.all(Dimensions.width20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _actionBtn(
+                    Icons.download_rounded,
+                    () => ToastificationHelper.showInfo(
+                      context,
+                      'Downloading coming soon.',
+                    ),
+                  ),
+                  _actionBtn(
+                    Icons.delete_outline_rounded,
+                    () => ToastificationHelper.showInfo(
+                      context,
+                      'Removing coming soon.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(
+                right: Dimensions.width20,
+                bottom: Dimensions.height20,
+              ),
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: FloatingActionButton(
+                  onPressed: () async {
+                    final result = await FilePicker.platform.pickFiles();
+                    if (result == null || result.files.isEmpty) return;
+                    setState(() => _attachments.addAll(result.files));
+                    if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                    if (!mounted) return;
+                    ToastificationHelper.showSuccess(
+                      context,
+                      '${result.files.length} attachment(s) added.',
+                    );
+                  },
+                  backgroundColor: AppColors.primary,
+                  child: const Icon(
+                    Icons.attach_file_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  Widget _actionBtn(IconData icon, VoidCallback onTap) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(Dimensions.radius15),
+    child: Container(
+      padding: EdgeInsets.all(Dimensions.width15),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceLight,
+        borderRadius: BorderRadius.circular(Dimensions.radius15),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Icon(
+        icon,
+        size: Dimensions.iconSize24,
+        color: context.colors.textPrimary,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -284,14 +220,12 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
               color: context.colors.textSecondary,
               size: Dimensions.iconSize24 - 2,
             ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => NewAdjustmentPage(existing: _adjustment),
-                ),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => NewAdjustmentPage(existing: _adjustment),
+              ),
+            ),
           ),
           IconButton(
             icon: Icon(
@@ -299,12 +233,10 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
               color: context.colors.textSecondary,
               size: Dimensions.iconSize24 - 2,
             ),
-            onPressed: () {
-              ToastificationHelper.showInfo(
-                context,
-                'Exporting adjustment as PDF is coming soon.',
-              );
-            },
+            onPressed: () => ToastificationHelper.showInfo(
+              context,
+              'Exporting as PDF is coming soon.',
+            ),
           ),
           PopupMenuButton<String>(
             icon: Icon(
@@ -320,98 +252,47 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
             elevation: 8,
             onSelected: (value) async {
               if (value == 'convert') {
-                // Convert to adjusted (completed)
-                setState(() {
-                  // In real app, update via repository/bloc
-                  // For now, just rebuild to show the change
-                });
                 ToastificationHelper.showSuccess(
                   context,
                   'Adjustment marked as completed',
                 );
               } else if (value == 'print') {
-                // TODO: Connect to PDF generation API
                 ToastificationHelper.showInfo(
                   context,
                   'Generating PDF for print...',
                 );
               } else if (value == 'delete') {
-                // TODO: Call delete API
                 final confirmed = await showConfirmationDialog(
                   context,
                   title: 'Delete Adjustment',
                   message:
                       'Are you sure you want to delete this adjustment? This action cannot be undone.',
                 );
-                if (confirmed && context.mounted) {
-                  Navigator.pop(context);
-                }
+                if (confirmed && context.mounted) Navigator.pop(context);
               }
             },
             itemBuilder: (context) => [
               if (isDraft)
-                PopupMenuItem(
-                  value: 'convert',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline_rounded,
-                        size: Dimensions.iconSize16 + 4,
-                        color: AppColors.primary,
-                      ),
-                      SizedBox(width: Dimensions.width10),
-                      Text(
-                        'Convert to Adjusted',
-                        style: TextStyle(
-                          fontSize: Dimensions.font16 * 0.85,
-                          fontWeight: FontWeight.w600,
-                          color: context.colors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
+                _menuItem(
+                  context,
+                  'convert',
+                  Icons.check_circle_outline_rounded,
+                  'Convert to Adjusted',
+                  AppColors.primary,
                 ),
-              PopupMenuItem(
-                value: 'print',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.print_rounded,
-                      size: Dimensions.iconSize16 + 4,
-                      color: context.colors.textSecondary,
-                    ),
-                    SizedBox(width: Dimensions.width10),
-                    Text(
-                      'Print',
-                      style: TextStyle(
-                        fontSize: Dimensions.font16 * 0.85,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
+              _menuItem(
+                context,
+                'print',
+                Icons.print_rounded,
+                'Print',
+                context.colors.textSecondary,
               ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline_rounded,
-                      size: Dimensions.iconSize16 + 4,
-                      color: AppColors.warn,
-                    ),
-                    SizedBox(width: Dimensions.width10),
-                    Text(
-                      'Delete',
-                      style: TextStyle(
-                        fontSize: Dimensions.font16 * 0.85,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.warn,
-                      ),
-                    ),
-                  ],
-                ),
+              _menuItem(
+                context,
+                'delete',
+                Icons.delete_outline_rounded,
+                'Delete',
+                AppColors.warn,
               ),
             ],
           ),
@@ -423,202 +304,24 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
             ? const DetailsPageSkeleton()
             : Column(
                 children: [
-                  // Header section with date, reason, and status
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(Dimensions.width20),
-                    decoration: BoxDecoration(
-                      color: context.colors.card,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x08000000),
-                          blurRadius: Dimensions.radius15 * 0.53,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Date',
-                              style: TextStyle(
-                                fontSize: Dimensions.font16 * 0.7,
-                                color: context.colors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: Dimensions.width10 + 2,
-                                vertical: Dimensions.height10 * 0.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    (isDraft
-                                            ? AppColors.warn
-                                            : AppColors.primary)
-                                        .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(
-                                  Dimensions.radius30,
-                                ),
-                              ),
-                              child: Text(
-                                adjustment.status.label,
-                                style: TextStyle(
-                                  fontSize: Dimensions.font16 * 0.62,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.6,
-                                  color: isDraft
-                                      ? AppColors.warn
-                                      : AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: Dimensions.height10 / 2.5),
-                        Text(
-                          formatDate(adjustment.date),
-                          style: TextStyle(
-                            fontSize: Dimensions.font20 * 0.95,
-                            fontWeight: FontWeight.w800,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: Dimensions.height20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Reason',
-                                    style: TextStyle(
-                                      fontSize: Dimensions.font16 * 0.7,
-                                      color: context.colors.textSecondary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  SizedBox(height: Dimensions.height10 / 2.5),
-                                  Text(
-                                    adjustment.reason,
-                                    style: TextStyle(
-                                      fontSize: Dimensions.font20 * 0.95,
-                                      fontWeight: FontWeight.w800,
-                                      color: context.colors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (_attachments.isNotEmpty)
-                              GestureDetector(
-                                onTap: _showAttachmentsDialog,
-                                child: Container(
-                                  padding: EdgeInsets.all(
-                                    Dimensions.width10 + 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(
-                                      alpha: 0.08,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      Dimensions.radius15,
-                                    ),
-                                    border: Border.all(
-                                      color: AppColors.primary.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Badge(
-                                    label: Text(
-                                      '${_attachments.length}',
-                                      style: TextStyle(
-                                        fontSize: Dimensions.font16 * 0.56,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    backgroundColor: AppColors.accent,
-                                    child: Icon(
-                                      Icons.attach_file_rounded,
-                                      color: AppColors.primary,
-                                      size: Dimensions.iconSize24 - 2,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
+                  AdjustmentDetailsHeader(
+                    adjustment: adjustment,
+                    attachmentCount: _attachments.length,
+                    onAttachmentTap: _showAttachmentsDialog,
                   ),
                   SizedBox(height: Dimensions.height15),
-
-                  // Tabs
-                  Container(
-                    margin: EdgeInsets.symmetric(
-                      horizontal: Dimensions.width20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceLight,
-                      borderRadius: BorderRadius.circular(Dimensions.radius30),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicator: BoxDecoration(
-                        color: context.colors.card,
-                        borderRadius: BorderRadius.circular(
-                          Dimensions.radius30,
-                        ),
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            blurRadius: Dimensions.radius15 * 0.53,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      labelColor: AppColors.primary,
-                      unselectedLabelColor: context.colors.textSecondary,
-                      labelStyle: TextStyle(
-                        fontSize: Dimensions.font16 * 0.72,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                      ),
-                      dividerColor: Colors.transparent,
-                      padding: EdgeInsets.all(Dimensions.width10 / 2),
-                      tabs: const [
-                        Tab(text: 'DETAILS'),
-                        Tab(text: 'COMMENTS & HISTORY'),
-                      ],
-                    ),
-                  ),
+                  _pillTabBar(),
                   SizedBox(height: Dimensions.height15),
-
-                  // Tab content
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
                       children: [
-                        // Details tab
-                        _buildDetailsTab(),
-                        // Comments & History tab
-                        _buildCommentsTab(),
+                        AdjustmentDetailsTab(adjustment: adjustment),
+                        AdjustmentCommentsTab(
+                          commentsController: _commentsController,
+                          inputController: _commentInputController,
+                          onSubmit: _submitComment,
+                        ),
                       ],
                     ),
                   ),
@@ -628,492 +331,72 @@ class _AdjustmentDetailsPageState extends State<AdjustmentDetailsPage>
     );
   }
 
-  String _adjustmentTypeLabel(String? type) {
-    switch (type?.toLowerCase()) {
-      case 'quantity':
-        return 'Quantity';
-      case 'value':
-        return 'Value';
-      default:
-        return (type == null || type.isEmpty) ? '-' : type;
-    }
-  }
-
-  Widget _buildDetailsTab() {
-    final adjustment = _adjustment;
-    return ListView(
-      padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        // Account & Details section
-        Container(
-          padding: EdgeInsets.all(Dimensions.width20),
-          decoration: BoxDecoration(
-            color: context.colors.card,
-            borderRadius: BorderRadius.circular(Dimensions.radius15),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x08000000),
-                blurRadius: Dimensions.radius15 * 0.53,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DetailRow(
-                label: 'Account:',
-                value: adjustment.account?.isNotEmpty == true
-                    ? adjustment.account!
-                    : '-',
-              ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Reference#:',
-                value: adjustment.referenceNumber?.isNotEmpty == true
-                    ? adjustment.referenceNumber!
-                    : '-',
-              ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Adjusted By:',
-                value: adjustment.createdBy.isNotEmpty
-                    ? adjustment.createdBy
-                    : '-',
-              ),
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Adjustment Type:',
-                value: _adjustmentTypeLabel(adjustment.adjustmentType),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: Dimensions.height15),
-
-        // Adjusted Items section
-        Container(
-          padding: EdgeInsets.all(Dimensions.width20),
-          decoration: BoxDecoration(
-            color: context.colors.card,
-            borderRadius: BorderRadius.circular(Dimensions.radius15),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x08000000),
-                blurRadius: Dimensions.radius15 * 0.53,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Adjusted Items',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.95,
-                  fontWeight: FontWeight.w800,
-                  color: context.colors.textPrimary,
-                ),
-              ),
-              SizedBox(height: Dimensions.height15),
-              if (adjustment.lines.isEmpty)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: Dimensions.height10),
-                  child: Text(
-                    'No items in this adjustment.',
-                    style: TextStyle(
-                      fontSize: Dimensions.font16 * 0.8,
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ),
-              ...adjustment.lines.map(
-                (item) => Container(
-                  margin: EdgeInsets.only(bottom: Dimensions.height10),
-                  padding: EdgeInsets.all(Dimensions.width15),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(Dimensions.radius15),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: Dimensions.height45,
-                        height: Dimensions.height45,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(
-                            Dimensions.radius15 / 2,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.inventory_2_rounded,
-                          color: AppColors.primary,
-                          size: Dimensions.iconSize24 - 2,
-                        ),
-                      ),
-                      SizedBox(width: Dimensions.width15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.itemName,
-                              style: TextStyle(
-                                fontSize: Dimensions.font16 * 0.9,
-                                fontWeight: FontWeight.w700,
-                                color: context.colors.textPrimary,
-                              ),
-                            ),
-                            if (item.sku?.isNotEmpty == true)
-                              Text(
-                                'SKU: ${item.sku}',
-                                style: TextStyle(
-                                  fontSize: Dimensions.font16 * 0.72,
-                                  color: context.colors.textSecondary,
-                                ),
-                              ),
-                            Text(
-                              'Rate: ₹${item.rate.toStringAsFixed(2)}  •  Value: ₹${item.value.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontSize: Dimensions.font16 * 0.7,
-                                color: context.colors.textTertiary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: Dimensions.width15,
-                          vertical: Dimensions.height10 / 1.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: context.colors.card,
-                          borderRadius: BorderRadius.circular(
-                            Dimensions.radius15 / 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              blurRadius: Dimensions.radius15 * 0.27,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          '${item.quantityAdjusted > 0 ? '+' : ''}${item.quantityAdjusted.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.85,
-                            fontWeight: FontWeight.w800,
-                            color: item.quantityAdjusted < 0
-                                ? AppColors.warn
-                                : AppColors.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: Dimensions.height15),
-
-        // More Information section
-        Container(
-          padding: EdgeInsets.all(Dimensions.width20),
-          decoration: BoxDecoration(
-            color: context.colors.card,
-            borderRadius: BorderRadius.circular(Dimensions.radius15),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x08000000),
-                blurRadius: Dimensions.radius15 * 0.53,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'More Information',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.95,
-                  fontWeight: FontWeight.w800,
-                  color: context.colors.textPrimary,
-                ),
-              ),
-              SizedBox(height: Dimensions.height15),
-              Text(
-                'Description',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.72,
-                  color: context.colors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: Dimensions.height10 / 2),
-              Text(
-                adjustment.description?.isNotEmpty == true
-                    ? adjustment.description!
-                    : 'No description provided.',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.88,
-                  color: context.colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: Dimensions.height30),
-      ],
-    );
-  }
-
-  Widget _buildCommentsTab() {
-    return Column(
-      children: [
-        Expanded(child: _buildCommentsList()),
-        _buildCommentInput(),
-      ],
-    );
-  }
-
-  Widget _buildCommentsList() {
-    final comments = _commentsController.comments;
-
-    if (_commentsController.isLoading && comments.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (comments.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(Dimensions.width20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: EdgeInsets.all(Dimensions.width20),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.07),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.history_rounded,
-                  size: Dimensions.iconSize24 * 2,
-                  color: AppColors.primary,
-                ),
-              ),
-              SizedBox(height: Dimensions.height20),
-              Text(
-                'No comments or history yet',
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.95,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textPrimary,
-                ),
-              ),
-              SizedBox(height: Dimensions.height10),
-              Text(
-                'Add a comment below to start the\nactivity history',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: Dimensions.font16 * 0.8,
-                  color: context.colors.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: EdgeInsets.all(Dimensions.width20),
-      physics: const BouncingScrollPhysics(),
-      itemCount: comments.length,
-      separatorBuilder: (_, _) => SizedBox(height: Dimensions.height10),
-      itemBuilder: (_, i) => _buildCommentTile(comments[i]),
-    );
-  }
-
-  Widget _buildCommentTile(AdjustmentComment comment) {
-    final accent = comment.isSystem ? AppColors.accent : AppColors.primary;
+  Widget _pillTabBar() {
     return Container(
-      padding: EdgeInsets.all(Dimensions.width15),
+      margin: EdgeInsets.symmetric(horizontal: Dimensions.width20),
       decoration: BoxDecoration(
-        color: context.colors.card,
-        borderRadius: BorderRadius.circular(Dimensions.radius15),
-        border: Border.all(color: context.colors.border),
+        color: context.colors.surfaceLight,
+        borderRadius: BorderRadius.circular(Dimensions.radius30),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: Dimensions.height45 * 0.8,
-            height: Dimensions.height45 * 0.8,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              comment.isSystem
-                  ? Icons.history_rounded
-                  : Icons.chat_bubble_outline_rounded,
-              size: Dimensions.iconSize24 - 6,
-              color: accent,
-            ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: context.colors.card,
+          borderRadius: BorderRadius.circular(Dimensions.radius30),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            width: 1.5,
           ),
-          SizedBox(width: Dimensions.width15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  comment.text,
-                  style: TextStyle(
-                    fontSize: Dimensions.font16 * 0.85,
-                    color: context.colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-                SizedBox(height: Dimensions.height10 / 2),
-                Row(
-                  children: [
-                    if (comment.author.isNotEmpty) ...[
-                      Flexible(
-                        child: Text(
-                          comment.author,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.7,
-                            fontWeight: FontWeight.w700,
-                            color: context.colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      if (comment.createdAt != null)
-                        Text(
-                          '  •  ',
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.7,
-                            color: context.colors.textTertiary,
-                          ),
-                        ),
-                    ],
-                    if (comment.createdAt != null)
-                      Text(
-                        formatDateTime(comment.createdAt!),
-                        style: TextStyle(
-                          fontSize: Dimensions.font16 * 0.7,
-                          color: context.colors.textTertiary,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: Dimensions.radius15 * 0.53,
+              offset: const Offset(0, 2),
             ),
-          ),
+          ],
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: AppColors.primary,
+        unselectedLabelColor: context.colors.textSecondary,
+        labelStyle: TextStyle(
+          fontSize: Dimensions.font16 * 0.72,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
+        dividerColor: Colors.transparent,
+        padding: EdgeInsets.all(Dimensions.width10 / 2),
+        tabs: const [
+          Tab(text: 'DETAILS'),
+          Tab(text: 'COMMENTS & HISTORY'),
         ],
       ),
     );
   }
 
-  Widget _buildCommentInput() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        Dimensions.width20,
-        Dimensions.height10,
-        Dimensions.width20,
-        Dimensions.height15,
-      ),
-      decoration: BoxDecoration(
-        color: context.colors.card,
-        border: Border(top: BorderSide(color: context.colors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Dimensions.width15,
-                  vertical: Dimensions.height10 / 2,
-                ),
-                decoration: BoxDecoration(
-                  color: context.colors.surfaceLight,
-                  borderRadius: BorderRadius.circular(Dimensions.radius20),
-                  border: Border.all(color: context.colors.border),
-                ),
-                child: TextField(
-                  controller: _commentInputController,
-                  minLines: 1,
-                  maxLines: 4,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _submitComment(),
-                  style: TextStyle(
-                    fontSize: Dimensions.font16 * 0.85,
-                    color: context.colors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Add a comment',
-                    hintStyle: TextStyle(color: context.colors.textTertiary),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                ),
-              ),
+  PopupMenuItem<String> _menuItem(
+    BuildContext ctx,
+    String value,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: Dimensions.iconSize16 + 4, color: color),
+          SizedBox(width: Dimensions.width10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: Dimensions.font16 * 0.85,
+              fontWeight: FontWeight.w600,
+              color: value == 'delete'
+                  ? AppColors.warn
+                  : ctx.colors.textPrimary,
             ),
-            SizedBox(width: Dimensions.width10),
-            AnimatedBuilder(
-              animation: _commentsController,
-              builder: (context, _) {
-                final busy = _commentsController.isSubmitting;
-                return InkWell(
-                  onTap: busy ? null : _submitComment,
-                  borderRadius: BorderRadius.circular(Dimensions.radius20),
-                  child: Container(
-                    width: Dimensions.height45,
-                    height: Dimensions.height45,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: busy
-                        ? Padding(
-                            padding: EdgeInsets.all(Dimensions.width10),
-                            child: const CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                        : Icon(
-                            Icons.send_rounded,
-                            color: Colors.white,
-                            size: Dimensions.iconSize24 - 4,
-                          ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
