@@ -1,13 +1,20 @@
 import 'package:custom_books/core/apptheme/apptheme.dart';
-import 'package:custom_books/core/utils/date_formatter.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
+import 'package:custom_books/core/utils/toastification_helper.dart';
 import 'package:custom_books/core/widgets/confirmation_dialog.dart';
-import 'package:custom_books/core/widgets/detail_row.dart';
-import 'package:custom_books/features/purchase_orders/models/purchase_order_model.dart';
-import 'package:custom_books/features/purchase_orders/views/add_purchase_order_page.dart';
-import 'package:flutter/material.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
+import 'package:custom_books/features/customers/widgets/customer_details_page_widgets/comments_tab.dart';
+import 'package:custom_books/features/purchase_orders/models/purchase_order_model.dart';
+import 'package:custom_books/features/purchase_orders/views/add_purchase_order_page.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_attachments_dialog.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_bills_tab.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_details_header.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_details_tab.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_email_page.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_new_receive_page.dart';
+import 'package:custom_books/features/purchase_orders/widgets/po_receives_tab.dart';
+import 'package:flutter/material.dart';
 
 class PurchaseOrderDetailsPage extends StatefulWidget {
   final PurchaseOrderModel order;
@@ -27,7 +34,7 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -37,7 +44,6 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
     super.dispose();
   }
 
-  /// Simulates fetching details so the shimmer skeleton is shown briefly.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 900));
@@ -45,15 +51,51 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
     setState(() => _isLoading = false);
   }
 
+  void _openNewReceive() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => PoNewReceivePage(order: widget.order)),
+  );
+
+  Future<void> _onMoreSelected(String value) async {
+    switch (value) {
+      case 'mark_issued':
+        ToastificationHelper.showSuccess(context, 'Marked as Issued.');
+      case 'convert_bill':
+        ToastificationHelper.showInfo(context, 'Convert to Bill coming soon.');
+      case 'receive_items':
+        _openNewReceive();
+      case 'create_receive':
+        _openNewReceive();
+      case 'change_template':
+        ToastificationHelper.showInfo(context, 'Change Template coming soon.');
+      case 'preview':
+        ToastificationHelper.showInfo(context, 'Preview coming soon.');
+      case 'download_pdf':
+        ToastificationHelper.showInfo(context, 'Download PDF coming soon.');
+      case 'print':
+        ToastificationHelper.showInfo(context, 'Print coming soon.');
+      case 'clone':
+        ToastificationHelper.showInfo(context, 'Clone coming soon.');
+      case 'delete':
+        final confirmed = await showConfirmationDialog(
+          context,
+          title: 'Delete Purchase Order',
+          message:
+              'Are you sure you want to delete this purchase order? '
+              'This action cannot be undone.',
+        );
+        if (confirmed && mounted) Navigator.pop(context);
+    }
+  }
+
+  // ── build ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final order = widget.order;
-    final statusColor = order.status.color;
-
     return Scaffold(
       backgroundColor: context.colors.background,
       appBar: CustomBackAppBar(
-        title: 'Purchase Order Details',
+        title: 'Purchase Order',
         backgroundColor: context.colors.card,
         actions: [
           IconButton(
@@ -62,14 +104,25 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
               color: context.colors.textSecondary,
               size: Dimensions.iconSize24 - 2,
             ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AddPurchaseOrderPage(existing: widget.order),
-                ),
-              );
-            },
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddPurchaseOrderPage(existing: widget.order),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.email_outlined,
+              color: context.colors.textSecondary,
+              size: Dimensions.iconSize24 - 2,
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PoEmailPage(order: widget.order),
+              ),
+            ),
           ),
           PopupMenuButton<String>(
             icon: Icon(
@@ -83,77 +136,93 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
             surfaceTintColor: context.colors.card,
             color: context.colors.card,
             elevation: 8,
-            onSelected: (value) async {
-              if (value == 'print') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Print functionality coming soon'),
-                    duration: const Duration(seconds: 2),
-                    backgroundColor: context.colors.textSecondary,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(Dimensions.radius15),
-                    ),
+            onSelected: _onMoreSelected,
+            itemBuilder: (ctx) => [
+              _menuItem(
+                ctx,
+                'mark_issued',
+                'Mark as Issued',
+                Icons.check_circle_outline_rounded,
+                AppColors.primary,
+              ),
+              _menuItem(
+                ctx,
+                'convert_bill',
+                'Convert to Bill',
+                Icons.receipt_long_outlined,
+                AppColors.primary,
+              ),
+              PopupMenuItem<String>(
+                enabled: false,
+                height: Dimensions.height10 * 3,
+                child: Text(
+                  'Receive',
+                  style: TextStyle(
+                    fontSize: Dimensions.font16 * 0.82,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textSecondary,
                   ),
-                );
-              } else if (value == 'delete') {
-                final confirmed = await showConfirmationDialog(
-                  context,
-                  title: 'Delete Purchase Order',
-                  message:
-                      'Are you sure you want to delete this purchase order? This action cannot be undone.',
-                );
-                if (confirmed && context.mounted) {
-                  Navigator.pop(context);
-                }
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'print',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.print_rounded,
-                      size: Dimensions.iconSize16 + 4,
-                      color: context.colors.textSecondary,
-                    ),
-                    SizedBox(width: Dimensions.width10),
-                    Text(
-                      'Print',
-                      style: TextStyle(
-                        fontSize: Dimensions.font16 * 0.85,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
-                  ],
                 ),
               ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline_rounded,
-                      size: Dimensions.iconSize16 + 4,
-                      color: AppColors.warn,
-                    ),
-                    SizedBox(width: Dimensions.width10),
-                    Text(
-                      'Delete',
-                      style: TextStyle(
-                        fontSize: Dimensions.font16 * 0.85,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.warn,
-                      ),
-                    ),
-                  ],
-                ),
+              _menuItem(
+                ctx,
+                'receive_items',
+                '   Receive Items',
+                Icons.inventory_2_outlined,
+                AppColors.primary,
+              ),
+              _menuItem(
+                ctx,
+                'create_receive',
+                '   Create Receive',
+                Icons.add_box_outlined,
+                AppColors.primary,
+              ),
+              _menuItem(
+                ctx,
+                'change_template',
+                'Change Template',
+                Icons.dashboard_customize_outlined,
+                context.colors.textSecondary,
+              ),
+              _menuItem(
+                ctx,
+                'preview',
+                'Preview',
+                Icons.visibility_outlined,
+                context.colors.textSecondary,
+              ),
+              _menuItem(
+                ctx,
+                'download_pdf',
+                'Download PDF',
+                Icons.picture_as_pdf_outlined,
+                context.colors.textSecondary,
+              ),
+              _menuItem(
+                ctx,
+                'print',
+                'Print',
+                Icons.print_outlined,
+                context.colors.textSecondary,
+              ),
+              _menuItem(
+                ctx,
+                'clone',
+                'Clone',
+                Icons.copy_outlined,
+                context.colors.textSecondary,
+              ),
+              _menuItem(
+                ctx,
+                'delete',
+                'Delete',
+                Icons.delete_outline_rounded,
+                AppColors.warn,
               ),
             ],
           ),
-          SizedBox(width: Dimensions.width10),
+          SizedBox(width: Dimensions.width10 / 2),
         ],
       ),
       body: SafeArea(
@@ -161,137 +230,58 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
             ? const DetailsPageSkeleton()
             : Column(
                 children: [
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(Dimensions.width20),
-                    decoration: BoxDecoration(
-                      color: context.colors.card,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0x08000000),
-                          blurRadius: Dimensions.radius15 * 0.53,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Order Date',
-                              style: TextStyle(
-                                fontSize: Dimensions.font16 * 0.7,
-                                color: context.colors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: Dimensions.width10 + 2,
-                                vertical: Dimensions.height10 * 0.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(
-                                  Dimensions.radius30,
-                                ),
-                              ),
-                              child: Text(
-                                order.status.label,
-                                style: TextStyle(
-                                  fontSize: Dimensions.font16 * 0.62,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.6,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: Dimensions.height10 / 2.5),
-                        Text(
-                          formatDate(order.orderDate),
-                          style: TextStyle(
-                            fontSize: Dimensions.font20 * 0.95,
-                            fontWeight: FontWeight.w800,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: Dimensions.height20),
-                        Text(
-                          order.vendorName,
-                          style: TextStyle(
-                            fontSize: Dimensions.font20 * 0.95,
-                            fontWeight: FontWeight.w800,
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: Dimensions.height10 / 2.5),
-                        Text(
-                          order.purchaseOrderNumber,
-                          style: TextStyle(
-                            fontSize: Dimensions.font16 * 0.85,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textSecondary,
-                          ),
-                        ),
-                      ],
+                  PoDetailsHeader(
+                    order: widget.order,
+                    onAttachmentTap: () => showDialog(
+                      context: context,
+                      builder: (_) => PoAttachmentsDialog(order: widget.order),
                     ),
                   ),
-                  SizedBox(height: Dimensions.height15),
-
                   Container(
-                    margin: EdgeInsets.symmetric(
-                      horizontal: Dimensions.width20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.colors.surfaceLight,
-                      borderRadius: BorderRadius.circular(Dimensions.radius30),
-                    ),
+                    color: context.colors.card,
                     child: TabBar(
                       controller: _tabController,
-                      indicator: BoxDecoration(
-                        color: context.colors.card,
-                        borderRadius: BorderRadius.circular(
-                          Dimensions.radius30,
-                        ),
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            blurRadius: Dimensions.radius15 * 0.53,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      indicatorSize: TabBarIndicatorSize.tab,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
                       labelColor: AppColors.primary,
                       unselectedLabelColor: context.colors.textSecondary,
                       labelStyle: TextStyle(
-                        fontSize: Dimensions.font16 * 0.72,
+                        fontSize: Dimensions.font16 * 0.75,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.3,
                       ),
-                      dividerColor: Colors.transparent,
-                      padding: EdgeInsets.all(Dimensions.width10 / 2),
+                      unselectedLabelStyle: TextStyle(
+                        fontSize: Dimensions.font16 * 0.75,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      indicator: const UnderlineTabIndicator(
+                        borderSide: BorderSide(
+                          color: AppColors.primary,
+                          width: 2.5,
+                        ),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: context.colors.border,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: Dimensions.width10 / 2,
+                      ),
                       tabs: const [
                         Tab(text: 'DETAILS'),
+                        Tab(text: 'BILLS'),
+                        Tab(text: 'RECEIVES'),
                         Tab(text: 'COMMENTS & HISTORY'),
                       ],
                     ),
                   ),
-                  SizedBox(height: Dimensions.height15),
-
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
-                      children: [_buildDetailsTab(), _buildCommentsTab()],
+                      children: [
+                        PoDetailsTab(order: widget.order),
+                        const PoBillsTab(),
+                        PoReceivesTab(order: widget.order),
+                        const CommentsTab(),
+                      ],
                     ),
                   ),
                 ],
@@ -300,94 +290,32 @@ class _PurchaseOrderDetailsPageState extends State<PurchaseOrderDetailsPage>
     );
   }
 
-  Widget _buildDetailsTab() {
-    final order = widget.order;
-    return ListView(
-      padding: EdgeInsets.symmetric(horizontal: Dimensions.width20),
-      physics: const BouncingScrollPhysics(),
-      children: [
-        Container(
-          padding: EdgeInsets.all(Dimensions.width20),
-          decoration: BoxDecoration(
-            color: context.colors.card,
-            borderRadius: BorderRadius.circular(Dimensions.radius15),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x08000000),
-                blurRadius: Dimensions.radius15 * 0.53,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DetailRow(
-                label: 'Reference#:',
-                value: order.referenceNumber.isEmpty
-                    ? '—'
-                    : order.referenceNumber,
-              ),
-              if (order.expectedDeliveryDate != null) ...[
-                SizedBox(height: Dimensions.height15),
-                DetailRow(
-                  label: 'Expected Delivery:',
-                  value: formatDate(order.expectedDeliveryDate!),
-                ),
-              ],
-              SizedBox(height: Dimensions.height15),
-              DetailRow(
-                label: 'Amount:',
-                value: '₹${order.total.toStringAsFixed(2)}',
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: Dimensions.height30),
-      ],
-    );
-  }
+  // ── popup menu item factory ────────────────────────────────────────────────
 
-  Widget _buildCommentsTab() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(Dimensions.width20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: EdgeInsets.all(Dimensions.width20),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.07),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.history_rounded,
-                size: Dimensions.iconSize24 * 2,
-                color: AppColors.primary,
-              ),
+  PopupMenuItem<String> _menuItem(
+    BuildContext ctx,
+    String value,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: Dimensions.iconSize16 + 4, color: color),
+          SizedBox(width: Dimensions.width10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: Dimensions.font16 * 0.85,
+              fontWeight: FontWeight.w600,
+              color: value == 'delete'
+                  ? AppColors.warn
+                  : ctx.colors.textPrimary,
             ),
-            SizedBox(height: Dimensions.height20),
-            Text(
-              'No comments or history yet',
-              style: TextStyle(
-                fontSize: Dimensions.font16 * 0.95,
-                fontWeight: FontWeight.w700,
-                color: context.colors.textPrimary,
-              ),
-            ),
-            SizedBox(height: Dimensions.height10),
-            Text(
-              'Comments and activity history\nwill appear here',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: Dimensions.font16 * 0.8,
-                color: context.colors.textSecondary,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
