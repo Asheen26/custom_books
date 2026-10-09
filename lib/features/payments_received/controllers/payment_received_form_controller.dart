@@ -33,7 +33,7 @@ class PaymentReceivedFormController extends ChangeNotifier {
     );
   }
 
-  /// PATCH `/api/payments-received/?payment_id=<id>`
+  /// `PATCH /api/payments-received/?payment_id=<id>`
   ///
   /// Returns `null` on success (caller receives the updated [PaymentReceivedModel]).
   /// Returns an error message string on failure.

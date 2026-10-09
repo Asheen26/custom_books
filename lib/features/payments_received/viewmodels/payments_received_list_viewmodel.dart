@@ -108,7 +108,7 @@ class PaymentsReceivedListViewModel {
     }
   }
 
-  /// GET `/api/payments-received/export/?export_format=<format>`
+  /// `GET /api/payments-received/export/?export_format=<format>`
   ///
   /// [format] should be `'csv'` or `'json'`.
   Future<http.Response?> exportPayments({String format = 'csv'}) async {

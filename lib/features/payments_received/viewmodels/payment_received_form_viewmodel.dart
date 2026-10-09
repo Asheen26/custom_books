@@ -20,7 +20,7 @@ class PaymentReceivedFormViewModel {
     );
   }
 
-  /// PATCH `/api/payments-received/?payment_id=<id>` — updates an existing payment.
+  /// `PATCH /api/payments-received/?payment_id=<id>` — updates an existing payment.
   Future<Map<String, dynamic>?> updatePayment(
     String paymentId,
     Map<String, dynamic> body,
