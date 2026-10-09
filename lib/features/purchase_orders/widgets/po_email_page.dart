@@ -19,33 +19,44 @@ class PoEmailPage extends StatefulWidget {
 class _PoEmailPageState extends State<PoEmailPage> {
   final _ccController = TextEditingController();
   final _bccController = TextEditingController();
+  late final TextEditingController _subjectController;
+  late final TextEditingController _bodyController;
   bool _attachPdf = true;
 
   static const String _fromEmail = 'user1@demo1.techgeum.com';
 
-  String get _subject =>
-      'Purchase Order from demo1techgeum '
-      '(Purchase Order #: ${widget.order.purchaseOrderNumber})';
-
-  String get _body =>
-      'Dear ${widget.order.vendorName},\n\n'
-      'The purchase order (${widget.order.purchaseOrderNumber}) is attached '
-      'with this email.\n\n'
-      'An overview of the purchase order is available below:\n\n'
-      '─────────────────────────────────────────\n\n'
-      'Purchase Order # : ${widget.order.purchaseOrderNumber}\n\n'
-      '─────────────────────────────────────────\n'
-      'Order Date  :  ${formatDate(widget.order.orderDate)}\n'
-      'Amount      :  ₹${widget.order.total.toStringAsFixed(2)} (in INR)\n'
-      '─────────────────────────────────────────\n\n'
-      'Please go through it and confirm the order. '
-      'We look forward to working with you again.\n\n'
-      'Regards,\nuser1\ndemo1techgeum';
+  @override
+  void initState() {
+    super.initState();
+    _subjectController = TextEditingController(
+      text:
+          'Purchase Order from demo1techgeum '
+          '(Purchase Order #: ${widget.order.purchaseOrderNumber})',
+    );
+    _bodyController = TextEditingController(
+      text:
+          'Dear ${widget.order.vendorName},\n\n'
+          'The purchase order (${widget.order.purchaseOrderNumber}) is attached '
+          'with this email.\n\n'
+          'An overview of the purchase order is available below:\n\n'
+          '─────────────────────────────────────────\n\n'
+          'Purchase Order # : ${widget.order.purchaseOrderNumber}\n\n'
+          '─────────────────────────────────────────\n'
+          'Order Date  :  ${formatDate(widget.order.orderDate)}\n'
+          'Amount      :  ₹${widget.order.total.toStringAsFixed(2)} (in INR)\n'
+          '─────────────────────────────────────────\n\n'
+          'Please go through it and confirm the order. '
+          'We look forward to working with you again.\n\n'
+          'Regards,\nuser1\ndemo1techgeum',
+    );
+  }
 
   @override
   void dispose() {
     _ccController.dispose();
     _bccController.dispose();
+    _subjectController.dispose();
+    _bodyController.dispose();
     super.dispose();
   }
 
@@ -174,11 +185,18 @@ class _PoEmailPageState extends State<PoEmailPage> {
           _row(
             context,
             label: 'Subject',
-            child: Text(
-              _subject,
+            child: TextField(
+              controller: _subjectController,
               style: TextStyle(
                 fontSize: Dimensions.font16 * 0.88,
                 color: context.colors.textPrimary,
+              ),
+              maxLines: null,
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                hintStyle: TextStyle(color: context.colors.textTertiary),
               ),
             ),
           ),
@@ -193,12 +211,20 @@ class _PoEmailPageState extends State<PoEmailPage> {
               borderRadius: BorderRadius.circular(Dimensions.radius15),
               border: Border.all(color: context.colors.border),
             ),
-            child: Text(
-              _body,
+            child: TextField(
+              controller: _bodyController,
               style: TextStyle(
                 fontSize: Dimensions.font16 * 0.82,
                 color: context.colors.textPrimary,
                 height: 1.55,
+              ),
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                hintStyle: TextStyle(color: context.colors.textTertiary),
               ),
             ),
           ),
@@ -276,7 +302,11 @@ class _PoEmailPageState extends State<PoEmailPage> {
     );
   }
 
-  Widget _row(BuildContext context, {required String label, required Widget child}) {
+  Widget _row(
+    BuildContext context, {
+    required String label,
+    required Widget child,
+  }) {
     return Container(
       color: context.colors.card,
       padding: EdgeInsets.symmetric(
