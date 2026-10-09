@@ -2,8 +2,8 @@ import 'package:custom_books/core/apptheme/apptheme.dart';
 import 'package:custom_books/core/utils/app_logger.dart';
 import 'package:custom_books/core/utils/dimensions.dart';
 import 'package:custom_books/core/utils/toastification_helper.dart';
+import 'package:custom_books/features/sales_orders/controllers/sales_order_form_controller.dart';
 import 'package:custom_books/features/sales_orders/models/sales_order_model.dart';
-import 'package:custom_books/features/sales_orders/viewmodels/sales_orders_list_viewmodel.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:custom_books/core/utils/date_formatter.dart';
@@ -25,89 +25,44 @@ class SalesOrderActionsSheet extends StatefulWidget {
 }
 
 class _SalesOrderActionsSheetState extends State<SalesOrderActionsSheet> {
-  final _vm = SalesOrdersListViewModel();
-  bool _isLoading = false;
+  final _ctrl = SalesOrderFormController();
+  bool get _isLoading => _ctrl.isSubmitting;
 
   Future<void> _runAction(String action) async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
-
-    final Future<Map<String, dynamic>?> call;
-    switch (action) {
-      case 'confirm':
-        call = _vm.confirmSalesOrder(widget.order.id);
-      case 'cancel':
-        call = _vm.cancelSalesOrder(widget.order.id);
-      case 'mark_invoiced':
-        call = _vm.markSalesOrderInvoiced(widget.order.id);
-      default:
-        setState(() => _isLoading = false);
-        return;
-    }
-
-    final resp = await call;
+    final updated = await _ctrl.performAction(action, widget.order.id);
     if (!mounted) return;
-
     Navigator.pop(context);
-
-    final int? statusCode = resp?['_statusCode'] as int?;
-    if (resp != null &&
-        resp['success'] == true &&
-        statusCode != null &&
-        statusCode >= 200 &&
-        statusCode < 300) {
-      final data = resp['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final updated = SalesOrderModel.fromJson(data);
-        widget.onStatusChanged(updated.status);
-        final msg = (resp['message'] ?? 'Status updated.').toString();
-        ToastificationHelper.showSuccess(context, msg);
-        appLog(
-          'Sales Order $action success: ${widget.order.salesOrderNumber} -> ${updated.status}',
-          name: 'SalesOrderActionsSheet',
-        );
-      }
-    } else {
-      final msg =
-          (resp?['message'] ?? 'Action failed. Please try again.').toString();
-      ToastificationHelper.showError(context, msg);
+    if (updated != null) {
+      widget.onStatusChanged(updated.status);
+      ToastificationHelper.showSuccess(context, 'Status updated.');
       appLog(
-        'Sales Order $action failed (status: $statusCode): $msg',
+        'Sales Order $action success: ${widget.order.salesOrderNumber} -> ${updated.status}',
         name: 'SalesOrderActionsSheet',
       );
+    } else {
+      ToastificationHelper.showError(
+        context,
+        _ctrl.errorMessage ?? 'Action failed. Please try again.',
+      );
+      appLog('Sales Order $action failed', name: 'SalesOrderActionsSheet');
     }
   }
 
   Future<void> _runDelete() async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
-
-    final resp = await _vm.deleteSalesOrder(widget.order.id);
+    final error = await _ctrl.delete(widget.order.id);
     if (!mounted) return;
-
-    final int? statusCode = resp?['_statusCode'] as int?;
-    final bool ok = resp != null &&
-        statusCode != null &&
-        statusCode >= 200 &&
-        statusCode < 300;
-
-    setState(() => _isLoading = false);
-
-    if (ok) {
-      final msg = (resp['message'] ?? 'Sales order deleted.').toString();
+    if (error == null) {
       appLog(
         'Sales Order deleted: ${widget.order.salesOrderNumber}',
         name: 'SalesOrderActionsSheet',
       );
       Navigator.pop(context);
       widget.onDelete();
-      ToastificationHelper.showSuccess(context, msg);
+      ToastificationHelper.showSuccess(context, 'Sales order deleted.');
     } else {
-      final msg =
-          (resp?['message'] ?? 'Could not delete. Please try again.').toString();
-      ToastificationHelper.showError(context, msg);
+      ToastificationHelper.showError(context, error);
       appLog(
-        'Sales Order delete failed (status: $statusCode): $msg',
+        'Sales Order delete failed: $error',
         name: 'SalesOrderActionsSheet',
       );
     }
@@ -115,8 +70,7 @@ class _SalesOrderActionsSheetState extends State<SalesOrderActionsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat =
-        NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
     return SafeArea(
       child: Padding(
@@ -179,45 +133,59 @@ class _SalesOrderActionsSheetState extends State<SalesOrderActionsSheet> {
               ),
             ),
             Divider(
-                height: Dimensions.height20 * 1.5,
-                color: context.colors.border),
+              height: Dimensions.height20 * 1.5,
+              color: context.colors.border,
+            ),
 
             // Show a loading indicator while an action is in progress
             if (_isLoading)
               Padding(
-                padding:
-                    EdgeInsets.symmetric(vertical: Dimensions.height20),
-                child: const Center(child: CircularProgressIndicator.adaptive()),
+                padding: EdgeInsets.symmetric(vertical: Dimensions.height20),
+                child: const Center(
+                  child: CircularProgressIndicator.adaptive(),
+                ),
               )
             else ...[
               if (widget.order.status == SalesOrderStatus.draft)
                 ListTile(
-                  leading: const Icon(Icons.check_circle_outline_rounded,
-                      color: Colors.green),
+                  leading: const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Colors.green,
+                  ),
                   title: const Text('Mark as Confirmed'),
                   onTap: () => _runAction('confirm'),
                 ),
               if (widget.order.status == SalesOrderStatus.confirmed)
                 ListTile(
-                  leading: const Icon(Icons.receipt_long_rounded,
-                      color: AppColors.primary),
+                  leading: const Icon(
+                    Icons.receipt_long_rounded,
+                    color: AppColors.primary,
+                  ),
                   title: const Text('Mark as Invoiced'),
                   onTap: () => _runAction('mark_invoiced'),
                 ),
               if (widget.order.status == SalesOrderStatus.draft ||
                   widget.order.status == SalesOrderStatus.confirmed)
                 ListTile(
-                  leading:
-                      const Icon(Icons.cancel_outlined, color: Colors.orange),
-                  title: const Text('Cancel Order',
-                      style: TextStyle(color: Colors.orange)),
+                  leading: const Icon(
+                    Icons.cancel_outlined,
+                    color: Colors.orange,
+                  ),
+                  title: const Text(
+                    'Cancel Order',
+                    style: TextStyle(color: Colors.orange),
+                  ),
                   onTap: () => _runAction('cancel'),
                 ),
               ListTile(
-                leading: const Icon(Icons.delete_outline_rounded,
-                    color: Colors.red),
-                title: const Text('Delete Sales Order',
-                    style: TextStyle(color: Colors.red)),
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                ),
+                title: const Text(
+                  'Delete Sales Order',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () => _runDelete(),
               ),
             ],

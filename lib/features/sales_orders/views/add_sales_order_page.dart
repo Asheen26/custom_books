@@ -11,7 +11,7 @@ import 'package:custom_books/features/customers/models/customer_model.dart';
 import 'package:custom_books/features/customers/views/add_customer_page.dart';
 import 'package:custom_books/features/customers/viewmodels/customers_list_viewmodel.dart';
 import 'package:custom_books/features/sales_orders/models/sales_order_model.dart';
-import 'package:custom_books/features/sales_orders/viewmodels/sales_orders_list_viewmodel.dart';
+import 'package:custom_books/features/sales_orders/controllers/sales_order_form_controller.dart';
 import 'package:custom_books/core/line_item/add_line_item_page.dart';
 import 'package:custom_books/core/line_item/item_lookup_model.dart';
 import 'package:file_picker/file_picker.dart';
@@ -37,7 +37,7 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
   final _notesController = TextEditingController();
   final _termsController = TextEditingController();
 
-  final _vm = SalesOrdersListViewModel();
+  final _ctrl = SalesOrderFormController();
   final _customersVm = CustomersListViewModel();
 
   DateTime _salesOrderDate = DateTime.now();
@@ -443,7 +443,7 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
     setState(() => _isSaving = true);
 
     final existing = widget.existing;
-    final Map<String, dynamic>? resp;
+    final SalesOrderModel? savedOrder;
 
     if (existing != null) {
       // ── Edit mode: PUT ─────────────────────────────────────────────────
@@ -479,7 +479,7 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
       };
 
       appLog('Updating sales order: ${existing.id}', name: 'AddSalesOrderPage');
-      resp = await _vm.updateSalesOrder(existing.id, updatePayload);
+      savedOrder = await _ctrl.update(existing.id, updatePayload);
     } else {
       // ── Create mode: POST ──────────────────────────────────────────────
       // API requires item_id per line item
@@ -520,33 +520,21 @@ class _AddSalesOrderPageState extends State<AddSalesOrderPage>
       };
 
       appLog('Creating new sales order', name: 'AddSalesOrderPage');
-      resp = await _vm.createSalesOrder(createPayload);
+      savedOrder = await _ctrl.create(createPayload);
     }
 
     if (!mounted) return;
     setState(() => _isSaving = false);
 
-    final int? statusCode = resp?['_statusCode'] as int?;
-    final bool ok =
-        resp != null &&
-        resp['success'] == true &&
-        statusCode != null &&
-        statusCode >= 200 &&
-        statusCode < 300;
-
-    if (ok) {
-      final data = resp['data'] as Map<String, dynamic>?;
-      final savedOrder = data != null ? SalesOrderModel.fromJson(data) : null;
+    if (savedOrder != null) {
       markClean();
       Navigator.pop(context, savedOrder);
     } else {
-      final msg = (resp?['message'] ?? 'Could not save. Please try again.')
-          .toString();
-      ToastificationHelper.showError(context, msg);
-      appLog(
-        'Sales Order save failed (status: $statusCode): $msg',
-        name: 'AddSalesOrderPage',
+      ToastificationHelper.showError(
+        context,
+        _ctrl.errorMessage ?? 'Could not save. Please try again.',
       );
+      appLog('Sales Order save failed', name: 'AddSalesOrderPage');
     }
   }
 

@@ -6,7 +6,8 @@ import 'package:custom_books/core/widgets/confirmation_dialog.dart';
 import 'package:custom_books/core/widgets/custom_back_appbar.dart';
 import 'package:custom_books/core/widgets/skeletons/skeletons.dart';
 import 'package:custom_books/features/sales_orders/models/sales_order_model.dart';
-import 'package:custom_books/features/sales_orders/viewmodels/sales_orders_list_viewmodel.dart';
+import 'package:custom_books/features/sales_orders/controllers/sales_order_detail_controller.dart';
+import 'package:custom_books/features/sales_orders/controllers/sales_order_form_controller.dart';
 import 'package:custom_books/features/sales_orders/views/add_sales_order_page.dart';
 import 'package:custom_books/features/sales_orders/widgets/so_details_header.dart';
 import 'package:custom_books/features/sales_orders/widgets/so_details_tab.dart';
@@ -29,8 +30,9 @@ class SalesOrderDetailsPage extends StatefulWidget {
 }
 
 class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
-  final _vm = SalesOrdersListViewModel();
-  bool _isLoading = true;
+  final _detailCtrl = SalesOrderDetailController();
+  final _formCtrl = SalesOrderFormController();
+  bool _isLoading = false;
   bool _isActionLoading = false;
   String? _errorMessage;
   late SalesOrderModel _order;
@@ -41,6 +43,7 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
   void initState() {
     super.initState();
     _order = widget.order;
+    _detailCtrl.seed(widget.order);
     _load();
   }
 
@@ -49,70 +52,35 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
       _isLoading = true;
       _errorMessage = null;
     });
-    final resp = await _vm.fetchSalesOrderDetail(widget.order.id);
+    await _detailCtrl.load(widget.order.id);
     if (!mounted) return;
-    final int? statusCode = resp?['_statusCode'] as int?;
-    if (resp != null &&
-        resp['success'] == true &&
-        statusCode != null &&
-        statusCode >= 200 &&
-        statusCode < 300) {
-      final data = resp['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        setState(() => _order = SalesOrderModel.fromJson(data));
-        appLog(
-          'SO detail loaded: ${_order.salesOrderNumber}',
-          name: 'SalesOrderDetailsPage',
-        );
-      }
-    } else {
-      final msg = (resp?['message'] ?? 'Failed to load sales order details.')
-          .toString();
-      setState(() => _errorMessage = msg);
+    if (_detailCtrl.order != null) setState(() => _order = _detailCtrl.order!);
+    if (_detailCtrl.errorMessage != null) {
+      setState(() => _errorMessage = _detailCtrl.errorMessage);
     }
-    if (mounted) setState(() => _isLoading = false);
+    setState(() => _isLoading = false);
   }
 
   Future<void> _performAction(String action) async {
     if (_isActionLoading) return;
     setState(() => _isActionLoading = true);
-    final Future<Map<String, dynamic>?> call;
-    switch (action) {
-      case 'confirm':
-        call = _vm.confirmSalesOrder(_order.id);
-      case 'cancel':
-        call = _vm.cancelSalesOrder(_order.id);
-      case 'mark_invoiced':
-        call = _vm.markSalesOrderInvoiced(_order.id);
-      default:
-        setState(() => _isActionLoading = false);
-        return;
-    }
-    final resp = await call;
+    final updated = await _formCtrl.performAction(action, _order.id);
     if (!mounted) return;
-    final int? statusCode = resp?['_statusCode'] as int?;
-    if (resp != null &&
-        resp['success'] == true &&
-        statusCode != null &&
-        statusCode >= 200 &&
-        statusCode < 300) {
-      final data = resp['data'] as Map<String, dynamic>?;
-      if (data != null) {
-        final updated = SalesOrderModel.fromJson(data);
-        setState(() => _order = updated);
-        widget.onStatusChanged?.call(updated.status);
-        ToastificationHelper.showSuccess(
-          context,
-          (resp['message'] ?? 'Status updated.').toString(),
-        );
-      }
+    setState(() => _isActionLoading = false);
+    if (updated != null) {
+      setState(() => _order = updated);
+      widget.onStatusChanged?.call(updated.status);
+      ToastificationHelper.showSuccess(context, 'Status updated.');
+      appLog(
+        'SO $action success: ${updated.salesOrderNumber}',
+        name: 'SalesOrderDetailsPage',
+      );
     } else {
       ToastificationHelper.showError(
         context,
-        (resp?['message'] ?? 'Action failed.').toString(),
+        _formCtrl.errorMessage ?? 'Action failed.',
       );
     }
-    if (mounted) setState(() => _isActionLoading = false);
   }
 
   Future<void> _confirmDelete() async {
@@ -122,29 +90,17 @@ class _SalesOrderDetailsPageState extends State<SalesOrderDetailsPage> {
       message:
           'Are you sure you want to delete this sales order? This action cannot be undone.',
     );
-    if (!confirmed || !context.mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() => _isActionLoading = true);
-    final resp = await _vm.deleteSalesOrder(_order.id);
+    final error = await _formCtrl.delete(_order.id);
     if (!mounted) return;
     setState(() => _isActionLoading = false);
-    final int? statusCode = resp?['_statusCode'] as int?;
-    final bool ok =
-        resp != null &&
-        statusCode != null &&
-        statusCode >= 200 &&
-        statusCode < 300;
-    if (ok) {
+    if (error == null) {
       widget.onDelete?.call();
       Navigator.pop(context);
-      ToastificationHelper.showSuccess(
-        context,
-        (resp['message'] ?? 'Sales order deleted.').toString(),
-      );
+      ToastificationHelper.showSuccess(context, 'Sales order deleted.');
     } else {
-      ToastificationHelper.showError(
-        context,
-        (resp?['message'] ?? 'Could not delete. Please try again.').toString(),
-      );
+      ToastificationHelper.showError(context, error);
     }
   }
 

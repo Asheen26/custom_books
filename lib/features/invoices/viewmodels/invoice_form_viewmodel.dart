@@ -10,9 +10,7 @@ class InvoiceFormViewModel {
   final String baseUrl = ApiSecrets.baseUrl;
 
   /// POST /api/invoices/ — creates a new invoice.
-  Future<Map<String, dynamic>?> createInvoice(
-    Map<String, dynamic> body,
-  ) async {
+  Future<Map<String, dynamic>?> createInvoice(Map<String, dynamic> body) async {
     final url = Uri.parse('$baseUrl/api/invoices/');
     return _request(
       method: 'POST',
@@ -22,7 +20,7 @@ class InvoiceFormViewModel {
     );
   }
 
-  /// PATCH /api/invoices/?invoice_id=<id> — updates an existing invoice.
+  /// `PATCH /api/invoices/?invoice_id=<id>` — updates an existing invoice.
   Future<Map<String, dynamic>?> updateInvoice(
     String invoiceId,
     Map<String, dynamic> body,

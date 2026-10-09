@@ -97,7 +97,6 @@ class _ExpenseBreakdownCardWidgetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -153,7 +152,7 @@ class _ExpenseBreakdownCardWidgetState
                 ),
               ),
               Text(
-                '${sym}${total.toStringAsFixed(2)}',
+                '$sym${total.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontSize: Dimensions.font16 * 1.05,
                   fontWeight: FontWeight.w800,
@@ -185,7 +184,7 @@ class _ExpenseBreakdownCardWidgetState
                         ),
                       ),
                       Text(
-                        '${sym}${e.amount.toStringAsFixed(2)}',
+                        '$sym${e.amount.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: Dimensions.font16 * 0.85,
                           fontWeight: FontWeight.w700,

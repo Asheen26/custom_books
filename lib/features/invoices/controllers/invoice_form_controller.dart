@@ -39,19 +39,18 @@ class InvoiceFormController extends ChangeNotifier {
     String? customerNotes,
     List<Map<String, dynamic>> lineItems = const [],
     String? orderNumber,
-  }) =>
-      _submit(
-        action: 'save_as_draft',
-        customerId: customerId,
-        placeOfSupply: placeOfSupply,
-        invoiceDate: invoiceDate,
-        paymentTerms: paymentTerms,
-        subject: subject,
-        taxType: taxType,
-        customerNotes: customerNotes,
-        lineItems: lineItems,
-        orderNumber: orderNumber,
-      );
+  }) => _submit(
+    action: 'save_as_draft',
+    customerId: customerId,
+    placeOfSupply: placeOfSupply,
+    invoiceDate: invoiceDate,
+    paymentTerms: paymentTerms,
+    subject: subject,
+    taxType: taxType,
+    customerNotes: customerNotes,
+    lineItems: lineItems,
+    orderNumber: orderNumber,
+  );
 
   /// POST /api/invoices/ with action = save_and_send.
   /// Returns null on success, or an error message string on failure.
@@ -65,19 +64,18 @@ class InvoiceFormController extends ChangeNotifier {
     String? customerNotes,
     List<Map<String, dynamic>> lineItems = const [],
     String? orderNumber,
-  }) =>
-      _submit(
-        action: 'save_and_send',
-        customerId: customerId,
-        placeOfSupply: placeOfSupply,
-        invoiceDate: invoiceDate,
-        paymentTerms: paymentTerms,
-        subject: subject,
-        taxType: taxType,
-        customerNotes: customerNotes,
-        lineItems: lineItems,
-        orderNumber: orderNumber,
-      );
+  }) => _submit(
+    action: 'save_and_send',
+    customerId: customerId,
+    placeOfSupply: placeOfSupply,
+    invoiceDate: invoiceDate,
+    paymentTerms: paymentTerms,
+    subject: subject,
+    taxType: taxType,
+    customerNotes: customerNotes,
+    lineItems: lineItems,
+    orderNumber: orderNumber,
+  );
 
   // ── shared implementation ─────────────────────────────────────────────────
   Future<String?> _submit({
@@ -148,7 +146,7 @@ class InvoiceFormController extends ChangeNotifier {
     }
   }
 
-  /// PATCH /api/invoices/?invoice_id=<id> — updates an existing invoice.
+  /// `PATCH /api/invoices/?invoice_id=<id>` — updates an existing invoice.
   /// Returns null on success, or an error message string on failure.
   Future<String?> update({
     required String invoiceId,

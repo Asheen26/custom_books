@@ -85,7 +85,6 @@ class _CashFlowCardWidgetState extends State<CashFlowCardWidget> {
 
   void _onChartTap(int index) {
     setState(() {
-
       _tappedIndex = (_tappedIndex == index) ? null : index;
     });
   }
@@ -146,7 +145,6 @@ class _CashFlowCardWidgetState extends State<CashFlowCardWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -195,7 +193,6 @@ class _CashFlowCardWidgetState extends State<CashFlowCardWidget> {
                   return Stack(
                     clipBehavior: Clip.none,
                     children: [
-
                       Positioned.fill(
                         child: GestureDetector(
                           onTapDown: (details) {
@@ -252,26 +249,26 @@ class _CashFlowCardWidgetState extends State<CashFlowCardWidget> {
             _statLine(
               context,
               label,
-              '${sym}${first.opening.toStringAsFixed(2)}',
+              '$sym${first.opening.toStringAsFixed(2)}',
               context.colors.textPrimary,
               bold: true,
             ),
             _statLine(
               context,
               '+ Incoming',
-              '${sym}${totalIncoming.toStringAsFixed(2)}',
+              '$sym${totalIncoming.toStringAsFixed(2)}',
               AppColors.ok,
             ),
             _statLine(
               context,
               '- Outgoing',
-              '${sym}${totalOutgoing.toStringAsFixed(2)}',
+              '$sym${totalOutgoing.toStringAsFixed(2)}',
               AppColors.warn,
             ),
             _statLine(
               context,
               '= Ending Balance',
-              '${sym}${last.ending.toStringAsFixed(2)}',
+              '$sym${last.ending.toStringAsFixed(2)}',
               AppColors.accent,
               bold: true,
             ),
@@ -327,7 +324,6 @@ class _CashFlowCardWidgetState extends State<CashFlowCardWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-
             Text(
               '${point.month} 2026',
               style: TextStyle(
@@ -340,28 +336,28 @@ class _CashFlowCardWidgetState extends State<CashFlowCardWidget> {
 
             _tooltipRow(
               'Opening Bal.',
-              '${_sym}${_formatNumber(point.opening)}',
+              '$_sym${_formatNumber(point.opening)}',
               context.colors.textSecondary,
             ),
             SizedBox(height: Dimensions.height10 * 0.4),
 
             _tooltipRow(
               'Income',
-              '${_sym}${_formatNumber(point.income)}',
+              '$_sym${_formatNumber(point.income)}',
               AppColors.ok,
             ),
             SizedBox(height: Dimensions.height10 * 0.4),
 
             _tooltipRow(
               'Outgoing',
-              '${_sym}${_formatNumber(point.outgoing)}',
+              '$_sym${_formatNumber(point.outgoing)}',
               AppColors.warn,
             ),
             SizedBox(height: Dimensions.height10 * 0.4),
 
             _tooltipRow(
               'Ending Bal.',
-              '${_sym}${_formatNumber(point.ending)}',
+              '$_sym${_formatNumber(point.ending)}',
               AppColors.accent,
               bold: true,
             ),
